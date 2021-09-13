@@ -18,18 +18,18 @@ end
 
 struct GaussianProcessRegressor
 
-    X::AbstractMatrix
-    Y::AbstractMatrix
+    X::AbstractArray
+    Y::AbstractArray
     kernel
     noisevariance::Number
     kinv::AbstractMatrix
 
-    GaussianProcessRegressor(X::AbstractMatrix, Y::AbstractMatrix, kernel) = new(X, Y, kernel, 0, compute_kinv(X, kernel, 0))
-    GaussianProcessRegressor(X::AbstractMatrix, Y::AbstractMatrix, kernel, noisevariance) = new(X, Y, kernel, noisevariance, compute_kinv(X, kernel, noisevariance))
+    GaussianProcessRegressor(X::AbstractArray, Y::AbstractArray, kernel) = new(X, Y, kernel, 0, compute_kinv(X, kernel, 0))
+    GaussianProcessRegressor(X::AbstractArray, Y::AbstractArray, kernel, noisevariance) = new(X, Y, kernel, noisevariance, compute_kinv(X, kernel, noisevariance))
 
 end
 
-function predict(gpr::GaussianProcessRegressor, x::AbstractMatrix)
+function predict(gpr::GaussianProcessRegressor, x::AbstractArray)
     kstar = zeros(size(gpr.X, 2), size(x, 2))
     for i in 1:size(gpr.X, 2), j = 1:size(x, 2)
         kstar[i, j] = compute(gpr.kernel, gpr.X[:,i], x[:,j])
