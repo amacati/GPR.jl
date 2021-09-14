@@ -5,43 +5,65 @@ include("Kernel.jl")
 export GaussianProcessRegressor
 export GaussianKernel
 export predict
+export predict_full
 
 
-function compute_kinv(X::AbstractMatrix, kernel::GaussianKernel, noisevariance::Number)
+function compute_cholesky(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::GaussianKernel, noisevariance::Number)
     nelements = size(X, 2)
-    k = zeros(nelements, nelements)
-    for i = 1:nelements, j = 1:nelements
-        k[i, j] = compute(kernel, X[:,i], X[:, j])
+    k = Matrix{Float64}(undef, nelements, nelements)
+    for i = 1:nelements, j = 1:i
+        compute!(kernel, X[:,i], X[:,j], k, (i, j))
     end
-    return inv(k + I*noisevariance)
+    C = cholesky!(Symmetric(k + I*noisevariance, :L))
+    α = C.L'\(C.L\Y')
+    return C, α
 end
 
 struct GaussianProcessRegressor
 
-    X::AbstractMatrix
-    Y::AbstractMatrix
+    X::Matrix{Float64}
+    Y::Matrix{Float64}
     kernel
     noisevariance::Number
-    kinv::AbstractMatrix
+    C::Cholesky
+    α::Matrix{Float64}
 
-    GaussianProcessRegressor(X::AbstractMatrix, Y::AbstractMatrix, kernel) = new(X, Y, kernel, 0, compute_kinv(X, kernel, 0))
-    GaussianProcessRegressor(X::AbstractMatrix, Y::AbstractMatrix, kernel, noisevariance) = new(X, Y, kernel, noisevariance, compute_kinv(X, kernel, noisevariance))
+    GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel) = new(X, Y, kernel, 0, compute_cholesky(X, Y, kernel, 0)...)
+    GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel, noisevariance) = new(X, Y, kernel, noisevariance, compute_cholesky(X, Y, kernel, noisevariance)...)
 
 end
 
-function predict(gpr::GaussianProcessRegressor, x::AbstractMatrix)
-    kstar = zeros(size(gpr.X, 2), size(x, 2))
+function predict(gpr::GaussianProcessRegressor, x::Matrix{Float64})
+    kstar = Matrix{Float64}(undef, size(gpr.X, 2), size(x, 2))
     for i in 1:size(gpr.X, 2), j = 1:size(x, 2)
-        kstar[i, j] = compute(gpr.kernel, gpr.X[:,i], x[:,j])
+        compute!(gpr.kernel, gpr.X[:,i], x[:,j], kstar, (i,j))
     end
-    μ = transpose(kstar)*gpr.kinv*transpose(gpr.Y)
+    μ = kstar' * gpr.α
 
-    kdoublestar = zeros(size(x,2), size(x,2))
-    for i in 1:size(x, 2), j = 1:size(x, 2)
-        kdoublestar[i, j] = compute(gpr.kernel, x[:,i], x[:,j])
+    kdoublestar = Matrix{Float64}(undef, size(x,2),1)
+    for i in 1:size(x, 2)
+        compute!(gpr.kernel, x[:,i], x[:,i], kdoublestar, (i,1))
     end
-    σ = kdoublestar - transpose(kstar)*gpr.kinv*kstar
-    return μ, σ
+    v = gpr.C.L \ kstar
+    σ = kdoublestar .- diag(v'*v)
+    return μ, σ  # σ is a vector of the diagonal elements of the covariance matrix
+end
+
+function predict_full(gpr::GaussianProcessRegressor, x::Matrix{Float64})
+    kstar = Matrix{Float64}(undef, size(gpr.X, 2), size(x, 2))
+    for i in 1:size(gpr.X, 2), j = 1:size(x, 2)
+        compute!(gpr.kernel, gpr.X[:,i], x[:,j], kstar, (i,j))
+    end
+    μ = kstar' * gpr.α
+
+    kdoublestar = Matrix{Float64}(undef, size(x,2), size(x,2))
+    for i in 1:size(x, 2), j = 1:i
+        compute!(gpr.kernel, x[:,i], x[:,j], kdoublestar, (i,j))
+    end
+    kdoublestar = Symmetric(kdoublestar, :L)
+    v = gpr.C.L \ kstar
+    σ = kdoublestar - v'*v
+    return μ, σ  # σ is the complete covariance matrix
 end
 
 
