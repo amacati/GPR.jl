@@ -1,6 +1,9 @@
 using LinearAlgebra
 
-struct GaussianKernel
+
+abstract type AbstractKernel end
+
+struct GaussianKernel<:AbstractKernel
 
     variance::Number
     length::Number
