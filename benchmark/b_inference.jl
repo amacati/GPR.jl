@@ -1,14 +1,14 @@
 using BenchmarkTools
 using LinearAlgebra
-include("../src/GaussianProcessRegressor.jl")
+using GPR
 
 println("Gaussian Process inference benchmark.")
 suite = BenchmarkGroup()
 
-kernel = GPR.GaussianKernel(0.5,1.0)
+kernel = GaussianKernel(0.5,1.0)
 xtrain = rand(10,100) .* 5  # State size 10
 ytrain = sin.(xtrain)
-gpr = GPR.GaussianProcessRegressor(xtrain, ytrain, kernel, 0.05)
+gpr = GaussianProcessRegressor(xtrain, ytrain, kernel, 0.05)
 
 for nsamples in [10, 100]
     local xtest = rand(10, nsamples) .* 5
