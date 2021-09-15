@@ -1,6 +1,5 @@
 using LinearAlgebra
-
-include("../Kernel.jl")
+include("../kernels/AbstractKernel.jl")
 
 
 function compute_kernelmatrix(x1::Matrix{Float64}, x2::Matrix{Float64}, kernel::AbstractKernel)::Matrix{Float64}

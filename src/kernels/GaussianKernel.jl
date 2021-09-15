@@ -1,12 +1,11 @@
 using LinearAlgebra
+include("AbstractKernel.jl")
 
-
-abstract type AbstractKernel end
 
 struct GaussianKernel<:AbstractKernel
 
-    variance::Number
-    length::Number
+    variance::Float64
+    length::Float64
 
 end
 

@@ -1,6 +1,7 @@
 module GPR
 
-include("Kernel.jl")
+include("kernels/AbstractKernel.jl")
+include("kernels/GaussianKernel.jl")
 include("utils/kernelmatrix.jl")
 include("utils/cholesky.jl")
 include("visualization/visualization.jl")
