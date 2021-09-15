@@ -1,5 +1,6 @@
 using LinearAlgebra
 using Random
+using GPR
 
 
 xtrain = (rand(2,100) .- 0.5) .* 12
