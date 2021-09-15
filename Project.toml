@@ -1,4 +1,11 @@
+name = "GPR"
+uuid = "e44bbca1-d3fe-4ae0-bd51-d9b6e70a53f5"
+authors = ["Martin Schuck martin.schuck@tum.de"]
+version = "0.1.0"
+
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+ConstrainedDynamics = "65b0d8a9-e9fd-4f02-8653-a7163c490b26"
+ConstrainedDynamicsVis = "07ee0992-da0a-4409-aa8f-e0a0c9c09c30"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"

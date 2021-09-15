@@ -3,11 +3,13 @@ module GPR
 include("Kernel.jl")
 include("utils/kernelmatrix.jl")
 include("utils/cholesky.jl")
+include("visualization/visualization.jl")
 
 export GaussianProcessRegressor
 export GaussianKernel
 export predict
 export predict_full
+export plot_gp
 
 
 struct GaussianProcessRegressor
@@ -15,12 +17,12 @@ struct GaussianProcessRegressor
     X::Matrix{Float64}
     Y::Matrix{Float64}
     kernel::AbstractKernel
-    noisevariance::Number
+    noisevariance::Float64
     L::Matrix{Float64}
     α::Matrix{Float64}
 
     GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel) = new(X, Y, kernel, 0, compute_cholesky(X, Y, kernel, 0)...)
-    GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance) = new(X, Y, kernel, noisevariance, compute_cholesky(X, Y, kernel, noisevariance)...)
+    GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance::Float64) = new(X, Y, kernel, noisevariance, compute_cholesky(X, Y, kernel, noisevariance)...)
 
 end
 
