@@ -22,7 +22,7 @@ struct GeneralGaussianKernel<:AbstractKernel
 end
 
 
-function compute(kernel::GaussianKernel, x1::AbstractArray{Float64}, x2::AbstractArray{Float64})::Float64
+function compute(kernel::GaussianKernel, x1::AbstractArray{Float64}, x2::AbstractArray{Float64})
     r = x1 - x2
     return kernel.σ^2 * exp(-dot(r,r)/2kernel.l^2)
 end
@@ -32,7 +32,7 @@ function compute!(kernel::GaussianKernel, x1::AbstractArray{Float64}, x2::Abstra
     target[idx...] = kernel.σ^2 * exp(-dot(r, r)/2kernel.l^2)
 end
 
-function compute(kernel::GeneralGaussianKernel, x1::AbstractArray{Float64}, x2::AbstractArray{Float64})::Float64
+function compute(kernel::GeneralGaussianKernel, x1::AbstractArray{Float64}, x2::AbstractArray{Float64})
     r = x1 - x2
     return kernel.σ^2 * exp(-dot(r, kernel.M, r))
 end

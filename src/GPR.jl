@@ -8,6 +8,7 @@ include("visualization/visualization.jl")
 
 export GaussianProcessRegressor
 export GaussianKernel
+export GeneralGaussianKernel
 export predict
 export predict_full
 export plot_gp
