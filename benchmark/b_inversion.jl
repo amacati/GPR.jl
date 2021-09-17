@@ -11,7 +11,7 @@ end
 
 kernel = GaussianKernel(0.5,1.0)
 for nsamples in [10, 100]
-    local xtrain = reshape(collect(range(0, 6, length=nsamples)), 1, :)
+    local xtrain = rand(10,nsamples) .* 5  # State size 10
     local ytrain = sin.(xtrain)
     println("Matrix size: $nsamples")
     suite[nsamples] = @benchmark benchmark_gp_inversion($xtrain, $ytrain, $kernel)

@@ -22,9 +22,10 @@ struct GaussianProcessRegressor
     L::Matrix{Float64}
     α::Matrix{Float64}
 
-    GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel) = new(X, Y, kernel, 0, compute_cholesky(X, Y, kernel, 0)...)
-    GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance::Float64) = new(X, Y, kernel, noisevariance, compute_cholesky(X, Y, kernel, noisevariance)...)
-
+    function GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance::Float64 = 0.)
+        L, α = compute_cholesky(X, Y, kernel, noisevariance)
+        new(X, Y, kernel, noisevariance, L, α)
+    end
 end
 
 
