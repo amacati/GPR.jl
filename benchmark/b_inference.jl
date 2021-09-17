@@ -13,6 +13,6 @@ gpr = GaussianProcessRegressor(xtrain, ytrain, kernel, 0.05)
 for nsamples in [10, 100]
     local xtest = rand(10, nsamples) .* 5
     println("State size: 10, inference size: $nsamples")
-    suite[nsamples] = @benchmark GPR.predict($gpr, $xtest)
+    suite[nsamples] = @benchmark predict($gpr, $xtest)
     display(suite[nsamples])
 end

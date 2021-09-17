@@ -102,13 +102,14 @@ end
 gpr_x = GaussianProcessRegressor(X, Yx, kernel_x)
 μx, σx = predict(gpr_x, Xtotal)
 μx .+= Yx_mean
-plot_gp(Xtotal[1,:], μx, σx)
-scatter!(reshape(X[1,:],:,1), reshape(Yx .+ Yx_mean,:,1), lab="Support points", legend = :topleft)
+
 # mse for Ys
 
 # plot data
 
 
+plot_gp(Xtotal[1,:], μx, σx)
+scatter!(reshape(X[1,:],:,1), reshape(Yx .+ Yx_mean,:,1), lab="Support points", legend = :topleft)
 
 
 
