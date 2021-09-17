@@ -7,7 +7,7 @@ suite = BenchmarkGroup()
 
 kernel = GaussianKernel(0.5,1.0)
 xtrain = rand(10,100) .* 5  # State size 10
-ytrain = sin.(xtrain)
+ytrain = sum(sin.(xtrain), dims=1)
 gpr = GaussianProcessRegressor(xtrain, ytrain, kernel, 0.05)
 
 for nsamples in [10, 100]

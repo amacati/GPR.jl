@@ -22,10 +22,12 @@ struct GaussianProcessRegressor
     noisevariance::Float64
     L::Matrix{Float64}
     α::Matrix{Float64}
+    logPY::Float64
 
     function GaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance::Float64 = 0.)
         L, α = compute_cholesky(X, Y, kernel, noisevariance)
-        new(X, Y, kernel, noisevariance, L, α)
+        logPY = -0.5(Y*α)[1] - sum(log.(diag(L))) - size(Y,2)/2*log(2*pi)
+        new(X, Y, kernel, noisevariance, L, α, logPY)
     end
 end
 
