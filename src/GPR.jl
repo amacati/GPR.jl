@@ -53,7 +53,7 @@ function predict(gpr::GaussianProcessRegressor, xstar::Matrix{Float64})
 end
 
 function predict(gpr::GaussianProcessRegressor, xstar::Vector{Float64})
-    kstar = Matrix{Float64}(undef, size(gpr.X, 2), length(xstar))
+    kstar = Matrix{Float64}(undef, size(gpr.X, 2), 1)
     compute_kernelmatrix!(gpr.X, reshape(xstar,:,1), gpr.kernel, kstar)
     μ = kstar' * gpr.α
 
@@ -64,7 +64,8 @@ function predict(gpr::GaussianProcessRegressor, xstar::Vector{Float64})
     return μ, σ  # σ is a vector of the diagonal elements of the covariance matrix
 end
 
-function predict(gprs::AbstractArray{GaussianProcessRegressor}, xstart::AbstractArray{Float64}, nsteps::Int)
+function predict(gprs::AbstractArray{GaussianProcessRegressor}, xstart::AbstractArray{Float64},
+                 nsteps::Int, Ymean::AbstractArray{Float64})
     statesize = length(gprs)
     μ = Matrix{Float64}(undef, statesize, nsteps)
     σ = Matrix{Float64}(undef, statesize, nsteps)
@@ -73,7 +74,7 @@ function predict(gprs::AbstractArray{GaussianProcessRegressor}, xstart::Abstract
         μ[j, 1], σ[j, 1] = map(a-> a[1][1], predict(gprs[j], reshape(xstart,:,1)))
     end
     for i in 2:nsteps, j in 1:statesize
-        μ[j, i], σ[j, i] = map(a -> a[1][1], predict(gprs[j], μ[:,i-1]))
+        μ[j, i], σ[j, i] = map(a -> a[1][1], predict(gprs[j], μ[:,i-1] + Ymean))
     end
     return μ, σ
 end
