@@ -8,8 +8,8 @@ function compute_cholesky(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::Abstra
         L = cholesky!(Symmetric(k + I*noisevariance, :L)).L
         return L, L'\(L\Y')  # Also precompute α needed for predictions
     catch PosDefException
-        @warn "K not PSD, cholesky decomposition failed. Adding residuals to diagonal for stabilization."
-        L = cholesky!(Symmetric(k + I*noisevariance + I*1e-5, :L)).L
+        @warn "K not PSD, cholesky decomposition failed. Adding residuals to diagonal for stabilization." maxlog=1
+        L = cholesky!(Symmetric(k + I*noisevariance + I*1e-9, :L)).L
         return L, L'\(L\Y')  # Also precompute α needed for predictions
     end
 end

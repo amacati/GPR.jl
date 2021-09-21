@@ -1,50 +1,13 @@
 using Statistics
-using ConstrainedDynamics
-using ConstrainedDynamicsVis
 using GPR
 using Plots
 
-joint_axis = [1.0; 0.0; 0.0]
-
-Δt=0.01
-g = -9.81
-m = 1.0
-l = 1.0
-r = 0.01
-
-p2 = [0.0;0.0;l / 2] # joint connection point
-
-# Links
-origin = Origin{Float64}()
-link1 = Cylinder(r, l, m)
-
-# Constraints
-joint_between_origin_and_link1 = EqualityConstraint(Revolute(origin, link1, joint_axis; p2=p2))
-
-links = [link1]
-constraints = [joint_between_origin_and_link1]
+include("generatedata.jl")
 
 
-mech = Mechanism(origin, links, constraints, g=g,Δt=Δt)
+storage = simple_pendulum()
 
-T0 = 2*pi*sqrt((m*l^2/3)/(-g*l/2))
-t0 = 1
-
-q1 = UnitQuaternion(RotX(π / 2))
-setPosition!(origin,link1,p2 = p2,Δq = q1)
-setVelocity!(link1)
-storage = simulate!(mech,10.,record = true)
-
-
-
-
-
-
-
-
-
-
-function createdata(storage::Storage)::Matrix{Float64}
+function createdata(storage::Storage)
     # X = [x, y, vy, vy]'
     nelements = Int(length(storage.x[1])*0.02)
     X = Matrix{Float64}(undef, 4, nelements)
@@ -58,7 +21,7 @@ function createdata(storage::Storage)::Matrix{Float64}
     return X
 end
 
-function createtargets(storage::Storage, idx::Int)::Matrix{Float64}
+function createtargets(storage::Storage, idx::Int)
     # 1 = x[2], 2 = x[3], 3 = v[2], 4 = v[3]
     nelements = Int(length(storage.x[1])*0.02)
     @assert 1+nelements*10 <= length(storage.x[1])
@@ -72,24 +35,29 @@ function createtargets(storage::Storage, idx::Int)::Matrix{Float64}
 end
 
 X = createdata(storage)
-Yx = createtargets(storage, 1)
-Yy = createtargets(storage, 2)
-Yvx = createtargets(storage, 3)
-Yvy = createtargets(storage, 4)
 
 # compute, store and substract means from targets
-Yx_mean = mean(Yx)
-Yy_mean = mean(Yy)
-Yvx_mean = mean(Yvx)
-Yvy_mean = mean(Yvy)
+Y = Matrix{Float64}(undef, 4, size(X,2))
+Ymean = Vector{Float64}(undef, 4)
+for i in 1:4
+    Y[i,:] = createtargets(storage, i)
+    Ymean[i] = mean(Y[i,:])
+    Y[i,:] .-= Ymean[i]
+end
 
-Yx .-= Yx_mean
-Yy .-= Yy_mean
-Yvx .-= Yvx_mean
-Yvy .-= Yvy_mean
-
-# create GPR, predict values for Y
-kernel_x = GaussianKernel(0.2,0.7)
+println("Gridsearch for highest log marginal likelihood")
+gprs = Vector{GaussianProcessRegressor}(undef, 4)
+for i in 1:4
+    bestlogPY = -Inf
+    for σ in 0.01:0.05:2, l in 0.01:0.1:2, noise in 0:0.1:1
+        kernel = GaussianKernel(σ, l)
+        gpr = GaussianProcessRegressor(X, Y[i,:], kernel, noise)
+        if gpr.logPY > bestlogPY
+            gprs[i] = gpr
+            bestlogPY = gpr.logPY
+        end
+    end
+end
 
 ntotal = length(storage.x[1])
 Xtotal = Matrix{Float64}(undef, 4, ntotal)
@@ -99,26 +67,11 @@ for i in 1:ntotal
     Xtotal[3,i] = storage.v[1][i][2]
     Xtotal[4,i] = storage.v[1][i][3]
 end
-gpr_x = GaussianProcessRegressor(X, Yx, kernel_x)
-μx, σx = predict(gpr_x, Xtotal)
-μx .+= Yx_mean
 
-# mse for Ys
-
-# plot data
-
+μx, σx = predict(gprs[1], Xtotal)
+μx .+= Ymean[1]
 
 plot_gp(Xtotal[1,:], μx, σx)
-scatter!(reshape(X[1,:],:,1), reshape(Yx .+ Yx_mean,:,1), lab="Support points", legend = :topleft)
-
-
-
-
-
-
-
-
-
-
+scatter!(reshape(X[1,:],:,1), reshape(Y[1,:] .+ Ymean[1],:,1), lab="Support points", legend = :topleft)
 
 # ConstrainedDynamicsVis.visualize(mech, storage; showframes = true, env = "editor")
