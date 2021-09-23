@@ -1,7 +1,3 @@
-using LinearAlgebra
-include("AbstractKernel.jl")
-
-
 struct GaussianKernel<:AbstractKernel
     σ::Float64
     l::Float64

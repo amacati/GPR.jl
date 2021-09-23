@@ -1,6 +1,3 @@
-using Plots
-
-
 function plot_gp(x, μ, σ)
       # Plotting needs reshaping to column vector
     x = size(x,1) == 1 && size(x,2) != 1 ? reshape(x, :, 1) : x

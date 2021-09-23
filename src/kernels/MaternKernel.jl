@@ -1,7 +1,3 @@
-using LinearAlgebra
-include("AbstractKernel.jl")
-
-
 struct MaternKernel{Nv}<:AbstractKernel
     v::Float64
     l::Float64
