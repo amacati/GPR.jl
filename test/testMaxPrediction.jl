@@ -6,7 +6,7 @@ using LinearAlgebra
 include("generatedata.jl")
 
 
-storage = simple_pendulum()
+storage, mech = simplependulum()
 
 function create_maxc_data(storage::Storage, lag::Int = 1, step::Int = 50)
     # X = [x, y, vy, vy]'
@@ -28,15 +28,8 @@ end
 
 X, Y = create_maxc_data(storage)
 
-# compute, store and substract means from targets
-Ymean = Vector{Float64}(undef, 4)
-for i in 1:4
-    Ymean[i] = mean(Y[i,:])
-    Y[i,:] .-= Ymean[i]
-end
-
 println("Gridsearch for highest log marginal likelihood")
-gprs = Vector{GaussianProcessRegressor}(undef, 4)
+kernels = Vector{GaussianKernel}(undef, 4)
 
 for i in 1:4
     bestlogPY = -Inf
@@ -44,35 +37,34 @@ for i in 1:4
         kernel = GaussianKernel(σ,l)
         trialgpr = GaussianProcessRegressor(X, Y[i,:], kernel)
         if trialgpr.logPY > bestlogPY
-            gprs[i] = trialgpr
+            kernels[i] = kernel
             bestlogPY = trialgpr.logPY
         end
     end
-    println("Kernel: $i σ: $(gprs[i].kernel.σ) l: $(gprs[i].kernel.l)")
-    # println("Kernel: $i σ: $(gprs[i].kernel.v) l: $(gprs[i].kernel.l)")
+    println("Kernel: $i σ: $(kernels[i].σ) l: $(kernels[i].l)")
 end
-println("Gridsearch done, predicting...")
+mo_gpr = MOGaussianProcessRegressor(X, Y, kernels)
 
-xstart = X[:,1]
-μ, σ = predict(gprs, xstart, 200, Ymean)
+println("Gridsearch done, predicting...")
+xstart = SVector{size(X,1),Float64}(X[:,1])
+μstatic, σstatic = predict(mo_gpr, xstart, 200)
 Xtotal, _ = create_maxc_data(storage, 1, 1)
 
+μ = zeros(length(μstatic[1]), length(μstatic))
+σ = zeros(length(σstatic[1]), length(σstatic))
+for i in 1:length(μstatic)
+    μ[:,i] = μstatic[i]
+    σ[:,i] = σstatic[i]
+end
+
 xtrue = Xtotal[:,2:end]
-display(xtrue[1:2,:])
-xpredict = μ .+ Ymean
+display(μ)
+
 error = μ[1:2,1:200] .- xtrue[1:2,1:200]
 mse = sum(error.^2) / length(error)
 println("Mean squared error: $mse")
 
-plot_gp(xpredict[1,:], xpredict[2,:], sqrt.(σ[1,:].^2 + σ[2,:].^2))
-
-#=
-μx, σx = predict(gprs[1], Xtotal[:,1:200])
-μy, σy = predict(gprs[2], Xtotal[:,1:200])
-plot_gp(μx .+ Ymean[1], μy .+ Ymean[2], sqrt.(σx.^2 + σy.^2))
-=#
-
-# plot!(x, μ, lw = 2, legend = :topleft, lab = "Simulated trajectory")
+plot_gp(μ[1,:], μ[2,:], sqrt.(σ[1,:].^2 + σ[2,:].^2))
 scatter!(reshape(X[1,:],:,1), reshape(X[2,:],:,1), lab="Support points")
 
 # ConstrainedDynamicsVis.visualize(mech, storage; showframes = true, env = "editor")
