@@ -1,6 +1,5 @@
 function compute_cholesky(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance::Float64)
-    k = Matrix{Float64}(undef, size(X, 2), size(X, 2))
-    compute_kernelmatrix!(X, kernel, k)
+    k = compute_kernelmatrix(X, kernel)
     try
         L = cholesky!(Symmetric(k + I*noisevariance, :L)).L
         return L, L'\(L\Y')  # Also precompute α needed for predictions
@@ -12,8 +11,7 @@ function compute_cholesky(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::Abstra
 end
 
 function compute_cholesky(X::Vector{SVector{S,Float64}}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance::Float64) where {S}
-    k = Matrix{Float64}(undef, size(X,1), size(X,1))
-    compute_kernelmatrix!(X, kernel, k)
+    k = compute_kernelmatrix(X, kernel)
     try
         L = cholesky!(Symmetric(k + I*noisevariance, :L)).L
         return L, L'\(L\Y')  # Also precompute α needed for predictions

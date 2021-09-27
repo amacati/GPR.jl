@@ -27,13 +27,13 @@ function predict(mo_gpr::MOGaussianProcessRegressor, xstart::AbstractArray{Float
     σtemp = Vector{Float64}(undef, N)
     for j in 1:N
         # map extracts the float values from tuple of 1x1 matrices of predict
-        μtemp[j], σtemp[j] = map(a-> a[1][1], predict(mo_gpr.regressors[j], [xstart,]))
+        μtemp[j], σtemp[j] = map(a-> a[1][1], predict(mo_gpr.regressors[j], xstart))
     end
     μ[1] = SVector{N,Float64}(μtemp)
     σ[1] = SVector{N,Float64}(σtemp)
     for i in 2:nsteps
         for j in 1:N
-            μtemp[j], σtemp[j] = map(a -> a[1][1], predict(mo_gpr.regressors[j], [μ[i-1],]))
+            μtemp[j], σtemp[j] = map(a -> a[1][1], predict(mo_gpr.regressors[j], μ[i-1]))
         end
         μ[i] = SVector{N,Float64}(μtemp)
         σ[i] = SVector{N,Float64}(σtemp)

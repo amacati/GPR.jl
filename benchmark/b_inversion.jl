@@ -17,3 +17,5 @@ for nsamples in [10, 100]
     suite[nsamples] = @benchmark benchmark_gp_inversion($xtrain, $ytrain, $kernel)
     display(suite[nsamples])
 end
+#6 μs
+#433 μs

@@ -18,5 +18,5 @@ for nsamples in [10, 100]
     display(suite[nsamples])
 end
 
-#166 μs
-#1.9 ms
+#112 μs
+#500 μs
