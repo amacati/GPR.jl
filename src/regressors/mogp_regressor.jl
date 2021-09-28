@@ -5,16 +5,16 @@ struct MOGaussianProcessRegressor
     _X::Vector{SVector{S, Float64}} where S
     Y::Matrix{Float64}
 
-    function MOGaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel, noisevariance::Float64 = 0.)
+    function MOGaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel; noisevariance::Float64 = 0.)
         _X = [SVector{size(X,1)}(col) for col in eachcol(X)]
-        regressors = [GaussianProcessRegressor(X, _X, Y[i,:], kernel, noisevariance) for i in 1:size(Y,1)]
+        regressors = [GaussianProcessRegressor(X, _X, Y[i,:], kernel; noisevariance = noisevariance) for i in 1:size(Y,1)]
         new(regressors, X, _X, Y)
     end
 
-    function MOGaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::Vector{<:AbstractKernel}, noisevariance::Vector{Float64} = zeros(size(Y, 1)))
+    function MOGaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::Vector{<:AbstractKernel}; noisevariance::Vector{Float64} = zeros(size(Y, 1)))
         @assert size(Y,1) == length(kernel) == length(noisevariance) "kernel, noisevariance and Y dimensions have to agree!"
         _X = [SVector{size(X,1), Float64}(col) for col in eachcol(X)]
-        regressors = [GaussianProcessRegressor(X, _X, Y[i,:], kernel[i], noisevariance[i]) for i in 1:size(Y,1)]
+        regressors = [GaussianProcessRegressor(X, _X, Y[i,:], kernel[i]; noisevariance = noisevariance[i]) for i in 1:size(Y,1)]
         new(regressors, X, _X, Y)
     end
 end

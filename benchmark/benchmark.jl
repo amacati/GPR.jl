@@ -1,4 +1,4 @@
-benchmarks = ["inversion"
+benchmarks = ["optimization"
               "inference"
               "predict"]
 

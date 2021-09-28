@@ -1,16 +1,12 @@
 function compute_kernelmatrix(x1::Matrix{Float64}, x2::Matrix{Float64}, kernel::AbstractKernel)
     kstar = Matrix{Float64}(undef, size(x1, 2), size(x2, 2))
-    for i in 1:size(x1, 2), j in 1:size(x2, 2)
-        @inbounds compute!(kernel, x1[:,i], x2[:,j], kstar, (i,j))
-    end
+    @inbounds compute_kernelmatrix!(x1, x2, kernel, kstar)
     return kstar
 end
 
 function compute_kernelmatrix(x1::Vector{SVector{S1,Float64}}, x2::Vector{SVector{S2,Float64}}, kernel::AbstractKernel) where {S1, S2}
     kstar = Matrix{Float64}(undef, length(x1), length(x2))
-    for i in 1:length(x1), j in 1:length(x2)
-        @inbounds compute!(kernel, x1[i], x2[j], kstar, (i,j))
-    end
+    @inbounds compute_kernelmatrix!(x1, x2, kernel, kstar)
     return kstar
 end
 
@@ -29,18 +25,14 @@ end
 # For kernel matrices of a single vector, the symmetry of the problem can be used to avoid unnecessary computations.
 function compute_kernelmatrix(x::Matrix{Float64}, kernel::AbstractKernel)
     k = Matrix{Float64}(undef, size(x,2), size(x,2))
-    for i in 1:size(x1, 2), j in 1:i
-        @inbounds compute!(kernel, x[:,i], x[:,j], k, (i,j))
-    end
-    return Symmetric(k, :L)
+    @inbounds compute_kernelmatrix!(x, kernel, k)
+    return k
 end
 
 function compute_kernelmatrix(x::Vector{SVector{S,Float64}}, kernel::AbstractKernel) where S
     k = Matrix{Float64}(undef, length(x), length(x))
-    for i in 1:length(x), j in 1:i
-        @inbounds compute!(kernel, x[i], x[j], k, (i,j))
-    end
-    return Symmetric(k, :L)
+    @inbounds compute_kernelmatrix!(x, kernel, k)
+    return k
 end
 
 function compute_kernelmatrix!(x::Matrix{Float64}, kernel::AbstractKernel, target::Matrix{Float64})
@@ -60,17 +52,13 @@ end
 # If only the diagonal is needed, computation can be reduced further
 function compute_kerneldiagonal(x::Matrix{Float64}, kernel::AbstractKernel)
     σ = Matrix{Float64}(undef, size(x, 2), 1)
-    for i in 1:size(x, 2)
-        @inbounds compute!(kernel, x[:,i], x[:, i], σ, (i, 1))
-    end
+    @inbounds compute_kerneldiagonal!(x, kernel, σ)
     return σ
 end
 
 function compute_kerneldiagonal(x::Vector{SVector{S,Float64}}, kernel::AbstractKernel) where S
     σ = Matrix{Float64}(undef, length(x), 1)
-    for i in 1:length(x)
-        @inbounds compute!(kernel, x[i], x[i], σ, (i, 1))
-    end
+    @inbounds compute_kerneldiagonal!(x, kernel, σ)
     return σ
 end
 

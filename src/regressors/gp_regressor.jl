@@ -1,4 +1,4 @@
-struct GaussianProcessRegressor
+mutable struct GaussianProcessRegressor
 
     X::Matrix{Float64}
     _X::Vector{SVector{S, Float64}} where S
@@ -10,25 +10,22 @@ struct GaussianProcessRegressor
     α::Matrix{Float64}
     logPY::Float64
 
-    function GaussianProcessRegressor(X::Matrix{Float64}, Y::AbstractArray{Float64}, kernel::AbstractKernel, noisevariance::Float64 = 0., optimizeHP::Bool = false)
+    function GaussianProcessRegressor(X::Matrix{Float64}, Y::AbstractArray{Float64}, kernel::AbstractKernel; noisevariance::Float64 = 0.)
         _X = [SVector{size(X,1), Float64}(col) for col in eachcol(X)]
         Y = reshape(Y, 1, :)
         _Ymean = mean(Y)
         Y .-= _Ymean
-        if optimizeHP
-            kernel, noisevariance = optimize(kernel, _X, Y, noisevariance)  # Maximize logPY for hyperparameter determination
-        end
-        L, α = compute_cholesky(_X, Y, kernel, noisevariance)
+        L, α = Lα_decomposition(_X, Y, kernel, noisevariance)
         logPY = -0.5(Y*α)[1] - sum(log.(diag(L))) - size(Y,2)/2*log(2*pi)
         new(X, _X, Y, _Ymean, kernel, noisevariance, L, α, logPY)
     end
 
     # Used to share X and _X in MOGaussianProcessRegressors to avoid excessive copying of training points
-    function GaussianProcessRegressor(X::Matrix{Float64}, _X::Vector{SVector{S, Float64}}, Y::AbstractArray{Float64}, kernel::AbstractKernel, noisevariance::Float64 = 0.) where S
+    function GaussianProcessRegressor(X::Matrix{Float64}, _X::Vector{SVector{S, Float64}}, Y::AbstractArray{Float64}, kernel::AbstractKernel; noisevariance::Float64 = 0.) where S
         Y = reshape(Y, 1, :)
         _Ymean = mean(Y)
         Y .-= _Ymean
-        L, α = compute_cholesky(_X, Y, kernel, noisevariance)
+        L, α = Lα_decomposition(_X, Y, kernel, noisevariance)
         logPY = -0.5(Y*α)[1] - sum(log.(diag(L))) - size(Y,2)/2*log(2*pi)
         new(X, _X, Y, _Ymean, kernel, noisevariance, L, α, logPY)
     end
