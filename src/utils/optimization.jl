@@ -2,6 +2,12 @@ function optimize!(gpr::GaussianProcessRegressor)
     _optimize!(gpr, gpr.kernel)  # Dispatch depending on used kernel
 end
 
+function optimize!(mogpr::MOGaussianProcessRegressor)
+    for gpr in mogpr
+        _optimize!(gpr, gpr.kernel)  # Dispatch depending on used kernel
+    end
+end
+
 function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
     N = length(gpr._X)
     lower = [1e-5, 1e-5]  # σ, λ both positive

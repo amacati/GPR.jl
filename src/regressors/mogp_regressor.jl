@@ -4,20 +4,23 @@ struct MOGaussianProcessRegressor
     X::Matrix{Float64}
     _X::Vector{SVector{S, Float64}} where S
     Y::Matrix{Float64}
+    regressorcount::Int
 
     function MOGaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::AbstractKernel; noisevariance::Float64 = 0.)
         _X = [SVector{size(X,1)}(col) for col in eachcol(X)]
         regressors = [GaussianProcessRegressor(X, _X, Y[i,:], kernel; noisevariance = noisevariance) for i in 1:size(Y,1)]
-        new(regressors, X, _X, Y)
+        new(regressors, X, _X, Y, length(regressors))
     end
 
     function MOGaussianProcessRegressor(X::Matrix{Float64}, Y::Matrix{Float64}, kernel::Vector{<:AbstractKernel}; noisevariance::Vector{Float64} = zeros(size(Y, 1)))
         @assert size(Y,1) == length(kernel) == length(noisevariance) "kernel, noisevariance and Y dimensions have to agree!"
         _X = [SVector{size(X,1), Float64}(col) for col in eachcol(X)]
         regressors = [GaussianProcessRegressor(X, _X, Y[i,:], kernel[i]; noisevariance = noisevariance[i]) for i in 1:size(Y,1)]
-        new(regressors, X, _X, Y)
+        new(regressors, X, _X, Y, length(regressors))
     end
 end
+
+Base.iterate(mogpr::MOGaussianProcessRegressor, state=1) = state > mogpr.regressorcount ? nothing : (mogpr.regressors[state], state+1)
 
 function predict(mo_gpr::MOGaussianProcessRegressor, xstart::AbstractArray{Float64}, nsteps::Int)
     N = length(mo_gpr.regressors)
