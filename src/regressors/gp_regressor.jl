@@ -1,17 +1,17 @@
 mutable struct GaussianProcessRegressor
 
-    X::Matrix{Float64}
-    _X::Vector{SVector{S, Float64}} where S
-    Y::Matrix{Float64}
-    _Ymean::Float64
+    X::AbstractMatrix
+    _X::Vector{SVector{S, T}} where {S,T}
+    Y::AbstractMatrix
+    _Ymean::Real
     kernel::AbstractKernel
-    noisevariance::Float64
-    L::Matrix{Float64}
-    α::Matrix{Float64}
-    logPY::Float64
+    noisevariance::Real
+    L::AbstractMatrix
+    α::AbstractMatrix
+    logPY::Real
 
-    function GaussianProcessRegressor(X::Matrix{Float64}, Y::AbstractArray{Float64}, kernel::AbstractKernel; noisevariance::Float64 = 0.)
-        _X = [SVector{size(X,1), Float64}(col) for col in eachcol(X)]
+    function GaussianProcessRegressor(X::AbstractMatrix, Y::AbstractArray, kernel::AbstractKernel; noisevariance::Real = 0.)
+        _X = [SVector{size(X,1), eltype(X)}(col) for col in eachcol(X)]
         Y = reshape(Y, 1, :)
         _Ymean = mean(Y)
         Y .-= _Ymean
@@ -20,8 +20,8 @@ mutable struct GaussianProcessRegressor
         new(X, _X, Y, _Ymean, kernel, noisevariance, L, α, logPY)
     end
 
-    # Used to share X and _X in MOGaussianProcessRegressors to avoid excessive copying of training points
-    function GaussianProcessRegressor(X::Matrix{Float64}, _X::Vector{SVector{S, Float64}}, Y::AbstractArray{Float64}, kernel::AbstractKernel; noisevariance::Float64 = 0.) where S
+    # Used to share X and _X in MOGaussianProcessRegressors to avoid copying of training points
+    function GaussianProcessRegressor(X::AbstractMatrix, _X::Vector{SVector{S, T}}, Y::AbstractArray, kernel::AbstractKernel; noisevariance::Real = 0.) where {S, T}
         Y = reshape(Y, 1, :)
         _Ymean = mean(Y)
         Y .-= _Ymean
@@ -31,7 +31,7 @@ mutable struct GaussianProcessRegressor
     end
 end
 
-function predict(gpr::GaussianProcessRegressor, xstar::Matrix{Float64})
+function predict(gpr::GaussianProcessRegressor, xstar::AbstractMatrix)
     kstar = compute_kernelmatrix(gpr.X, xstar, gpr.kernel)
     μ = kstar' * gpr.α .+ gpr._Ymean  # Add mean of Y to retransform into non-zero average output space
 
@@ -41,11 +41,11 @@ function predict(gpr::GaussianProcessRegressor, xstar::Matrix{Float64})
     return μ, σ  # σ is a vector of the diagonal elements of the covariance matrix
 end
 
-function predict(gpr::GaussianProcessRegressor, xstar::Vector{Float64})
+function predict(gpr::GaussianProcessRegressor, xstar::AbstractVector)
     return predict(gpr, reshape(xstar, :, 1))
 end
 
-function predict(gpr::GaussianProcessRegressor, xstar::Vector{SVector{S,Float64}}) where S
+function predict(gpr::GaussianProcessRegressor, xstar::Vector{SVector{S,T}}) where {S,T}
     kstar = compute_kernelmatrix(gpr._X, xstar, gpr.kernel)
     μ = kstar' * gpr.α .+ gpr._Ymean  # Add mean of Y to retransform into non-zero average output space
 
@@ -55,11 +55,11 @@ function predict(gpr::GaussianProcessRegressor, xstar::Vector{SVector{S,Float64}
     return μ, σ  # σ is a vector of the diagonal elements of the covariance matrix
 end
 
-function predict(gpr::GaussianProcessRegressor, xstar::SVector{S, Float64}) where S
+function predict(gpr::GaussianProcessRegressor, xstar::SVector{S, T}) where {S,T}
     return predict(gpr, [xstar,])
 end
 
-function predict_full(gpr::GaussianProcessRegressor, xstar::Matrix{Float64})
+function predict_full(gpr::GaussianProcessRegressor, xstar::AbstractMatrix)
     kstar = compute_kernelmatrix(gpr.X, xstar, gpr.kernel)
     μ = kstar' * gpr.α .+ gpr._Ymean  # Add mean of Y to retransform into non-zero average output space
 

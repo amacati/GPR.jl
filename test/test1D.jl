@@ -8,7 +8,7 @@ ytrain = sin.(xtrain)
 xtest = reshape(collect(-5:0.01:5), 1, :)
 
 
-regressor = GaussianProcessRegressor(xtrain, ytrain, GaussianKernel(0.5, 0.5))
+regressor = GaussianProcessRegressor(xtrain, ytrain, GaussianKernel(1, 0.2))
 optimize!(regressor)
 μ, σ = predict(regressor, xtest)
 

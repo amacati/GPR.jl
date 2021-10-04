@@ -1,15 +1,15 @@
 using ConstrainedDynamics
-using ConstrainedDynamics: GenericJoint,Vmat,params
 using ConstrainedDynamicsVis
 using StaticArrays
+using Rotations
 
-function load2Ddata(storage::Storage, coord="max")
+function load2Ddata(storage::Storage; coord="max")
     coord == "max" && return _load2Ddatamax(storage)
     coord == "min" && return _load2Ddatamin(storage)
     throw(ArgumentError("Coordinate argument \"$coord\" not supported!"))
 end
 
-function load3Ddata(storage::Storage, coord="max")
+function load3Ddata(storage::Storage; coord="max")
     coord == "max" && return _load3Ddatamax(storage)
     coord == "min" && return _load3Ddatamin(storage)
     throw(ArgumentError("Coordinate argument \"$coord\" not supported!"))
@@ -18,9 +18,8 @@ end
 function _load2Ddatamax(storage)
     S = length(storage.x)
     N = length(storage.x[1])
-    x = Vector{Matrix{Float64}}(undef, S)
+    x = [Matrix{Float64}(undef, 6, N) for _ in 1:S]  # 2 pos 1 quat 2 linearV 1 angularV
     for body_id in 1:S
-        x[S] = Matrix{Float64}(undef, 6, N)  # 2 pos 1 quat 2 linearV 1 angularV
         for t in 1:N
             x[S][1:2,t] = storage.x[body_id][t][2:3]  # Y and Z act as X and Y
             quat = storage.q[body_id][t]
@@ -35,9 +34,8 @@ end
 function _load2Ddatamin(storage)
     S = length(storage.x)
     N = length(storage.x[1])
-    x = Vector{Matrix{Float64}}(undef, S)
+    x = [Matrix{Float64}(undef, 2, N) for _ in 1:S]  # 1 pos 1 velocity
     for body_id in 1:S
-        x[S] = Matrix{Float64}(undef, 2, N)  # 1 pos 1 velocity
         for t in 1:N
             quat = storage.q[body_id][t]
             x[S][1,t] = RotXYZ(quat).theta1
@@ -50,9 +48,8 @@ end
 function _load3Ddatamax(storage)
     S = length(storage.x)
     N = length(storage.x[1])
-    x = Vector{Matrix{Float64}}(undef, S)
+    x = [Matrix{Float64}(undef, 13, N) for _ in 1:S]  # 3 pos 4 quat 3 linearV 3 angularV
     for body_id in 1:S
-        x[S] = Matrix{Float64}(undef, 13, N)  # 3 pos 4 quat 3 linearV 3 angularV
         for t in 1:N
             x[S][1:3,t] = storage.x[body_id][t]
             quat = storage.q[body_id][t]
@@ -67,9 +64,8 @@ end
 function _load3Ddatamin(storage)
     S = length(storage.x)
     N = length(storage.x[1])
-    x = Vector{Matrix{Float64}}(undef, S)
+    x = [Matrix{Float64}(undef, 6, N) for _ in 1:S]  # 3 pos 3 angularV
     for body_id in 1:S
-        x[S] = Matrix{Float64}(undef, 6, N)  # 3 pos 3 angularV
         for t in 1:N
             euler = RotXYZ(storage.q[body_id][t])
             x[S][1:3,t] = [euler.theta1, euler.theta2, euler.theta3]

@@ -1,6 +1,7 @@
 using Rotations
 using LinearAlgebra
 
+
 axis = [1, 0, 0]
 θ = pi/2
 
@@ -31,3 +32,5 @@ averagequat = UnitQuaternion(decompQ.vectors[:,4])
 display(decompQ.vectors)
 display(decompQ.values)
 display(averagequat)
+
+

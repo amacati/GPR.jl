@@ -8,47 +8,62 @@ function optimize!(mogpr::MOGaussianProcessRegressor)
     end
 end
 
+# Faster version of tr(x1*x2) by only calculating diagonals 
+function product_trace(x1::AbstractMatrix, x2::AbstractMatrix, temp::AbstractMatrix)
+    temp .= x1 .* x2
+    return sum(temp)
+end
+
 function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
     N = length(gpr._X)
     lower = [1e-5, 1e-5]  # σ, λ both positive
     upper = [Inf, Inf]
     initial_params = [kernel.σ, kernel.λ]
-    ∂K∂θ = Matrix{Float64}(undef, N, N)
-    K = Matrix{Float64}(undef, N, N)
+    tracetemp = Matrix{Float64}(undef, N, N)
+    ∂K∂θ = similar(tracetemp)
+    K = similar(tracetemp)
+    KinvY = Matrix{Float64}(undef, N, 1)
+    ααT = similar(tracetemp)
 
-    #=  Gradients don't seem to work correctly
-    function ∂K∂σ(kernel, K, α)
-        for i in 1:N, j in 1:N
+    function ∂K∂σ(kernel, ααTK)
+        for i in 1:N, j in 1:i
             ∂K∂σ!(kernel, gpr._X[i], gpr._X[j], ∂K∂θ, (i, j))
         end
-        return 0.5*tr((α * α' - inv(K)) * ∂K∂θ)
+        return - 0.5*product_trace(ααTK, Symmetric(∂K∂θ, :L), tracetemp)
     end
 
-    function ∂K∂λ(kernel, K, α)
-        for i in 1:N, j in 1:N
-            ∂K∂λ!(kernel, gpr._X[i], gpr._X[j], ∂K∂θ, (i, j))
+    function ∂K∂λ(kernel, ααTK)
+        for i in 1:N, j in 1:i
+            @inbounds ∂K∂λ!(kernel, gpr._X[i], gpr._X[j], ∂K∂θ, (i, j))
         end
-        return 0.5*tr((α * α' - inv(K)) * ∂K∂θ)
+        return - 0.5*product_trace(ααTK, Symmetric(∂K∂θ, :L), tracetemp)
     end
 
     function fg!(F, G, x)
-        try
-            kernel = GaussianKernel(x...)
-            L, α = Lα_decomposition!(gpr._X, gpr.Y, kernel, gpr.noisevariance, K)
-            if G !== nothing
-                G[1] = ∂K∂σ(kernel, K, α)
-                G[2] = ∂K∂λ(kernel, K, α)
+        kernel = GaussianKernel(x...)
+        L, α = Lα_decomposition!(gpr._X, gpr.Y, kernel, gpr.noisevariance, K)  # In place calculation of K, still need to use K with Symmetric(K, :L)!
+        function compute_gradient()
+            try
+                Kinv = inv(cholesky(Symmetric(K, :L)))  # K is symmetric, cholesky should be faster
+                mul!(KinvY, Kinv, gpr.Y')
+                mul!(ααT, KinvY, KinvY')
+                ααTK = ααT - Kinv  # ααTK = (α*α' - inv(K)) with α = inv(K)*y'
+                G[1] = ∂K∂σ(kernel, ααTK)
+                G[2] = ∂K∂λ(kernel, ααTK)
+            catch  # In case cholesky fails
+                G[1] = 0
+                G[2] = 0
             end
-            if F !== nothing
-                # using negative to minimize instead of maximize log likelihood
-                return 0.5(gpr.Y*α)[1] + sum(log.(diag(L))) + size(gpr.Y,2)/2*log(2*pi)
-            end    
-        catch e
-            throw(e)  # TODO: REMOVE, DEBUG only_fg
-            return 1e15  # Inf crashes some optimization algorithms
         end
-    end"""
-    =#
+        if G !== nothing
+            @time compute_gradient()
+        end
+        if F !== nothing
+            # using negative to minimize instead of maximize log likelihood
+            return 0.5(gpr.Y*α)[1] + sum(log.(diag(L))) + size(gpr.Y,2)/2*log(2*pi)
+        end    
+    end
+
     function f(x)
         kernel = GaussianKernel(x...)
         L, α = Lα_decomposition!(gpr._X, gpr.Y, kernel, gpr.noisevariance, K)
@@ -57,8 +72,8 @@ function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
 
     # inner_optimizer = LBFGS()
     inner_optimizer = GradientDescent()
-    # res = optimize(Optim.only_fg!(fg!), lower, upper, initial_params, Fminbox(inner_optimizer), Optim.Options(time_limit=10.))
-    res = optimize(f, lower, upper, initial_params, Fminbox(inner_optimizer), Optim.Options(time_limit=10.))
+    res = optimize(Optim.only_fg!(fg!), lower, upper, initial_params, Fminbox(inner_optimizer), Optim.Options(time_limit=10.))
+    # res = optimize(f, lower, upper, initial_params, Fminbox(inner_optimizer), Optim.Options(time_limit=10.))
     display(res)
     gpr.logPY = - Optim.minimum(res)  # undo negative log likelihood
     gpr.kernel = GaussianKernel(Optim.minimizer(res)...)

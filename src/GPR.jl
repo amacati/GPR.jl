@@ -5,6 +5,8 @@ using LinearAlgebra
 using Statistics
 using Plots
 using Optim
+using ConstrainedDynamicsVis
+using Rotations
 
 export GaussianProcessRegressor
 export MOGaussianProcessRegressor
@@ -16,6 +18,7 @@ export predict
 export predict_full
 export plot_gp
 export optimize!
+export visualize_prediction
 
 include(joinpath("kernels", "AbstractKernel.jl"))
 include(joinpath("utils", "decompositions.jl"))
