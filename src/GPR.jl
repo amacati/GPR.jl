@@ -21,7 +21,8 @@ export optimize!
 export visualize_prediction
 
 include(joinpath("kernels", "AbstractKernel.jl"))
-include(joinpath("utils", "decompositions.jl"))
+include(joinpath("utils", "functions.jl"))
+include(joinpath("utils", "buffer.jl"))
 include(joinpath("visualization", "visualization.jl"))
 include(joinpath("kernels", "GaussianKernel.jl"))
 include(joinpath("kernels", "GeneralGaussianKernel.jl"))
