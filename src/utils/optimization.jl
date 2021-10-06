@@ -27,8 +27,8 @@ function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
         end
     end
 
-    # inner_optimizer = LBFGS()
-    inner_optimizer = GradientDescent()
+    inner_optimizer = LBFGS()
+    # inner_optimizer = GradientDescent()
     res = optimize(Optim.only_fg!(fg!), lower, upper, initial_params, Fminbox(inner_optimizer), Optim.Options(time_limit=10.))
     display(res)
     kernel = modifykernel(kernel, Optim.minimizer(res)...)

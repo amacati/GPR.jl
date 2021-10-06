@@ -36,15 +36,6 @@ mutable struct GaussianProcessRegressor
         new(X, Xstatic, Y, Ymean, kernel, noisevariance, _Kxx, Kxx, chol, α, ∇buffer, parameter_gradient, log_marginal_likelihood)
     end
 
-    # Used to share X and _X in MOGaussianProcessRegressors to avoid copying of training points
-    function GaussianProcessRegressor(X::AbstractMatrix, _X::Vector{SVector{S, T}}, Y::AbstractArray, kernel::AbstractKernel; noisevariance::Real = 0.) where {S, T}
-        Y = reshape(Y, 1, :)
-        Ymean = mean(Y)
-        Y .-= Ymean
-        L, α = Lα_decomposition(Xstatic, Y, kernel, noisevariance)
-        log_marginal_likelihood = -0.5(Y*α)[1] - sum(log.(diag(L))) - size(Y,2)/2*log(2*pi)
-        new(X, Xstatic, Y, Ymean, kernel, noisevariance, L, α, log_marginal_likelihood)
-    end
 end
 
 function updategpr!(gpr, kernel)

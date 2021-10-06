@@ -166,3 +166,31 @@ function simplependulum3D()
     storage = simulate!(mech, 10., record = true)
     return storage, mech
 end
+
+function rotatingcube()
+    # Parameters
+    l1 = 0.5
+    x, y = .5, .5
+    vert11 = [0.;0.;0]
+
+    # Initial orientation
+    phi1 = pi / 4
+    q1 = UnitQuaternion(RotX(phi1))
+
+    # Links
+    origin = Origin{Float64}()
+    link1 = Box(x, y, l1, l1, color = RGBA(1., 1., 0.))
+
+    # Constraints
+    socket0to1 = EqualityConstraint(Spherical(origin, link1; p2=vert11))
+    
+    links = [link1]
+    constraints = [socket0to1]
+
+    mech = Mechanism(origin, links, constraints)
+    setPosition!(origin,link1,p2 = vert11,Δq = q1)
+    setVelocity!(link1, ω=[1., 1., 1])
+
+    storage = simulate!(mech, 10., record = true)
+    return storage, mech
+end
