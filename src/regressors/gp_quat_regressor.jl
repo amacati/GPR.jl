@@ -1,6 +1,6 @@
 mutable struct GaussianProcessQuaternionRegressor
 
-    X::Vector{UnitQuaternion}
+    X::Vector{<:SVector}
     Y::Vector{UnitQuaternion}
     Ymean::UnitQuaternion
     kernel::AbstractKernel
@@ -12,10 +12,10 @@ mutable struct GaussianProcessQuaternionRegressor
     parameter_gradient::AbstractVector
     log_marginal_likelihood::Real
 
-    function GaussianProcessQuaternionRegressor(X::Vector{<:UnitQuaternion}, Y::Vector{<:UnitQuaternion}, kernel::AbstractKernel; noisevariance::Real = 0.)
-        N = length(X)
+    function GaussianProcessQuaternionRegressor(X::Vector{<:SVector}, Y::Vector{<:UnitQuaternion}, kernel::AbstractKernel; noisevariance::Real = 0.)
         Ymean = quaternion_average(Y)
 
+        N = length(X)
         _Kxx = Matrix{Float64}(undef, N, N)
         Kxx = compute_kernelmatrix!(X, kernel, _Kxx)
         chol = cholesky!(Symmetric(Kxx + I*noisevariance, :L))
@@ -26,10 +26,10 @@ mutable struct GaussianProcessQuaternionRegressor
 
 end
 
-function predict(gpr::GaussianProcessQuaternionRegressor, xstar::UnitQuaternion)
+function predict(gpr::GaussianProcessQuaternionRegressor, xstar::SVector)
     kstar = compute_kernelmatrix(gpr.X, [xstar], gpr.kernel)
 
-    weights = max.(kstar' * gpr.Kinv,0)  # Numerical errors can lead to weights < 0 which should not be possible
+    weights = kstar' * gpr.Kinv
     μ = quaternion_average(gpr.Y, vec(weights), gpr.Ymean)
     return μ
 end

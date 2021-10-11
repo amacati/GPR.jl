@@ -23,7 +23,6 @@ function modifykernel(kernel::GaussianKernel, σ::Real, λ::Real)
     return kernel
 end
 
-
 @inline function compute(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray)
     r = x1 - x2
     kernel._buffer[1] = -dot(r,r)/kernel._2λ²
@@ -31,14 +30,14 @@ end
     return kernel.σ² * kernel._buffer[2]  # kernel.σ² * exp(-dot(r, r)/2kernel.λ²)
 end
 
-@inline function compute!(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray, target::AbstractArray, idx::Tuple{Integer, Integer})
+@inline function compute!(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray, target::AbstractMatrix, idx::Tuple{Integer, Integer})
     r = x1 - x2
     kernel._buffer[1] = -dot(r,r)/kernel._2λ²
     kernel._buffer[2] = exp(kernel._buffer[1])
     target[idx...] = kernel.σ² * kernel._buffer[2]  # kernel.σ² * exp(-dot(r, r)/2kernel.λ²)
 end
 
-function ∂K∂σ!(kernel::GaussianKernel, X::AbstractArray, target::AbstractMatrix)
+function ∂K∂σ!(kernel::GaussianKernel, X::AbstractMatrix, target::AbstractMatrix)
     for i in 1:size(X,2), j in 1:i
         _∂K∂σ!(kernel, X[:,i], X[:,j], target, (i,j))
     end
@@ -52,14 +51,14 @@ function ∂K∂σ!(kernel::GaussianKernel, X::Vector{SVector{S, T}}, target::Ab
     return Symmetric(target, :L)
 end
 
-@inline function _∂K∂σ!(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray, target::AbstractArray, idx::Tuple{Integer, Integer})
+@inline function _∂K∂σ!(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray, target::AbstractMatrix, idx::Tuple{Integer, Integer})
     r = x1 - x2
     kernel._buffer[1] = -dot(r,r)/kernel._2λ²
     kernel._buffer[2] = exp(kernel._buffer[1])
     target[idx...] = kernel._2σ * kernel._buffer[2]  # 2kernel.σ * exp(-dot(r,r)/2kernel.λ²)
 end
 
-function ∂K∂λ!(kernel::GaussianKernel, X::AbstractArray, target::AbstractMatrix)
+function ∂K∂λ!(kernel::GaussianKernel, X::AbstractMatrix, target::AbstractMatrix)
     for i in 1:size(X,2), j in 1:i
         _∂K∂λ!(kernel, X[:,i], X[:,j], target, (i,j))
     end
@@ -73,7 +72,7 @@ function ∂K∂λ!(kernel::GaussianKernel, X::Vector{SVector{S, T}}, target::Ab
     return Symmetric(target, :L)
 end
 
-@inline function _∂K∂λ!(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray, target::AbstractArray, idx::Tuple{Integer, Integer})
+@inline function _∂K∂λ!(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray, target::AbstractMatrix, idx::Tuple{Integer, Integer})
     r = x1 - x2
     kernel._buffer[1] = dot(r,r)
     kernel._buffer[2] = -kernel._buffer[1]/kernel._2λ²
@@ -85,4 +84,8 @@ end
 
 function get_derivative_handles(_::GaussianKernel)
     return [∂K∂σ!, ∂K∂λ!]
+end
+
+function Base.copy(s::GaussianKernel)
+    return GaussianKernel(s.σ, s.λ)
 end

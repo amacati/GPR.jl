@@ -2,12 +2,14 @@ using BenchmarkTools
 
 function optimize!(gpr::GaussianProcessRegressor)
     _optimize!(gpr, gpr.kernel)  # Dispatch depending on used kernel
+    return gpr
 end
 
 function optimize!(mogpr::MOGaussianProcessRegressor)
     for gpr in mogpr
         _optimize!(gpr, gpr.kernel)  # Dispatch depending on used kernel
     end
+    return mogpr
 end
 
 function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
@@ -23,7 +25,7 @@ function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
             F !== nothing && return - gpr.log_marginal_likelihood  # using negative to minimize instead of maximize log likelihood
         catch
             G !== nothing ? G[:] .= 0 : nothing
-            F !== nothing && return Inf  
+            F !== nothing && return 1e15  # Inf leads to problems  
         end
     end
 
@@ -33,6 +35,7 @@ function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
     display(res)
     kernel = modifykernel(kernel, Optim.minimizer(res)...)
     updategpr!(gpr, kernel)
+    return nothing
 end
 
 function _optimize!(gpr::GaussianProcessRegressor, kernel::GeneralGaussianKernel)

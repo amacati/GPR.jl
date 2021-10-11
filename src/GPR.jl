@@ -16,6 +16,7 @@ export GaussianKernel
 export GeneralGaussianKernel
 export MaternKernel
 export QuaternionKernel
+export CompositeKernel
 export predict
 export predict_full
 export plot_gp
@@ -25,6 +26,7 @@ export compute_kernelmatrix
 export quaternion_average
 export quaternion_to_array
 export quaternion_projection
+export updatestate
 
 include(joinpath("kernels", "AbstractKernel.jl"))
 include(joinpath("utils", "functions.jl"))
@@ -34,6 +36,7 @@ include(joinpath("kernels", "GaussianKernel.jl"))
 include(joinpath("kernels", "GeneralGaussianKernel.jl"))
 include(joinpath("kernels", "MaternKernel.jl"))
 include(joinpath("kernels", "QuaternionKernel.jl"))
+include(joinpath("kernels", "CompositeKernel.jl"))
 include(joinpath("utils", "kernelmatrix.jl"))
 include(joinpath("regressors", "gp_regressor.jl"))
 include(joinpath("regressors", "gp_quat_regressor.jl"))

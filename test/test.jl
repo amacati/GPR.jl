@@ -3,33 +3,30 @@ using LinearAlgebra
 using StaticArrays
 using GPR
 using BenchmarkTools
+using ConstrainedDynamics
 
-x = rand(10,1000)
-xstar = rand(10,1)
-y = rand(1,1000)
-
-kernel = GaussianKernel(0.5, 0.5)
-
-k = compute_kernelmatrix(x, kernel)
-kstar = compute_kernelmatrix(x, xstar, kernel)
-chol = cholesky!(k)
-α = chol.L'\(chol.L\y')
-display(kstar' * α)
-display(((kstar' / chol.L') / chol.L) * y')
+include("generatedata.jl")
 
 
-function fct1(kstar, chol, y)
-    return (kstar'*(chol.L'\(chol.L\y')))[1]
+function constructF(mechanism, eqc, body)
+    Gₓ = ConstrainedDynamics.∂g∂ʳpos(mechanism, eqc, body.id)
+    Gᵥ = ConstrainedDynamics.∂g∂ʳvel(mechanism, eqc, body.id)
+    F = vcat(hcat(I, Gₓ'), hcat(Gᵥ, zeros(size(Gᵥ, 1), size(Gᵥ, 1))))  # [I Gₓ'; Gᵥ 0]
+    return F
 end
 
-function fct2(kstar, chol, y)
-    return (((kstar' / chol.L') / chol.L)*y')[1]
+function projectv!(v, newtonIter, mechanism, eqc, body)
+    F = constructF(mechanism, eqc, body)
+    f(s, G) = v - s[1:3] + G's[4:end]
+    s = SVector(v..., zeros(size(F, 1)-3)...)  # Initial s is [v, λ] with v = v, λ = 0
+    for _ in 1:newtonIter
+        F = constructF(mechanism, eqc, body)
+        Δs = F\f(s, F)
+        s -= Δs
+    end
+    return s[1:3]
 end
 
-@assert abs(fct1(kstar, chol, y) - fct2(kstar, chol, y)) < 1e-9
-
-suite = BenchmarkGroup()
-suite[1] = @benchmark fct1($kstar, $chol, $y)
-suite[2] = @benchmark fct2($kstar, $chol, $y)
-display(suite[1])
-display(suite[2])
+storage, mechanism = simplependulum3D()
+F = constructF(mechanism, mechanism.eqconstraints[2], mechanism.bodies[1])
+display(F)
