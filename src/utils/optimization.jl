@@ -1,7 +1,7 @@
 using BenchmarkTools
 
-function optimize!(gpr::GaussianProcessRegressor)
-    _optimize!(gpr, gpr.kernel)  # Dispatch depending on used kernel
+function optimize!(gpr::GaussianProcessRegressor, verbose::Bool = false)
+    _optimize!(gpr, gpr.kernel, verbose)  # Dispatch depending on used kernel
     return gpr
 end
 
@@ -12,7 +12,7 @@ function optimize!(mogpr::MOGaussianProcessRegressor)
     return mogpr
 end
 
-function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
+function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel, verbose::Bool = false)
     lower = [1e-5, 1e-5]  # σ, λ both positive
     upper = [Inf, Inf]
     initial_params = [kernel.σ, kernel.λ]
@@ -32,7 +32,7 @@ function _optimize!(gpr::GaussianProcessRegressor, kernel::GaussianKernel)
     inner_optimizer = LBFGS()
     # inner_optimizer = GradientDescent()
     res = optimize(Optim.only_fg!(fg!), lower, upper, initial_params, Fminbox(inner_optimizer), Optim.Options(time_limit=10.))
-    display(res)
+    verbose && display(res)
     kernel = modifykernel(kernel, Optim.minimizer(res)...)
     updategpr!(gpr, kernel)
     return nothing

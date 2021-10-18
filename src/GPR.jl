@@ -27,11 +27,14 @@ export quaternion_average
 export quaternion_to_array
 export quaternion_projection
 export updatestate
+export resetMechanism!
+export updateMechanism!
+export projectv!
 
 include(joinpath("kernels", "AbstractKernel.jl"))
+include(joinpath("projections", "implicitProjection.jl"))
 include(joinpath("utils", "functions.jl"))
 include(joinpath("utils", "buffer.jl"))
-include(joinpath("visualization", "visualization.jl"))
 include(joinpath("kernels", "GaussianKernel.jl"))
 include(joinpath("kernels", "GeneralGaussianKernel.jl"))
 include(joinpath("kernels", "MaternKernel.jl"))

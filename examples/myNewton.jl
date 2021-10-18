@@ -1,11 +1,27 @@
 using LinearAlgebra
 using ConstrainedDynamics
 
+
+function myDynamics!(mechanism, body, offset, s)
+    state = body.state
+    Δt = mechanism.Δt
+    gravity = SVector(0., 0, -mechanism.g)
+    dynT = body.m * ((state.vsol[2] - state.vc) / Δt + gravity) - state.Fk[1]
+    ω1 = state.ωc
+    ω2 = state.ωsol[2]
+    J = body.J
+    sq1 = sqrt(4 / Δt^2 - ω1' * ω1)
+    sq2 = sqrt(4 / Δt^2 - ω2' * ω2)
+    dynR = ConstrainedDynamics.skewplusdiag(ω2, sq2) * (J * ω2) - ConstrainedDynamics.skewplusdiag(ω1, sq1) * (J * ω1) - 2*state.τk[1]
+    s[1+offset:3+offset] = dynT
+    s[4+offset:6+offset] = dynR
+end
+
 function updateF!(F::AbstractMatrix, mechanism; Gᵥonly = false)
     Gᵥonly ? (_updateFv!(F, mechanism)) : (_updateF!(F, mechanism))
 end
 
-# Only update Gᵥ in [1 Gₓ; Gᵥ 0]
+# Only update Gᵥ in [D Gₓ; Gᵥ 0]
 function _updateFv!(F::AbstractMatrix, mechanism)
     N = length(mechanism.bodies)*6
     for eqc in mechanism.eqconstraints
@@ -24,8 +40,12 @@ function _updateFv!(F::AbstractMatrix, mechanism)
     return nothing
 end
 
-# Update both Gₓ and Gᵥ in [1 Gₓ; Gᵥ 0]
+# Update everything in [D Gₓ; Gᵥ 0]
 function _updateF!(F::AbstractMatrix, mechanism)
+    for (id, body) in enumerate(mechanism.bodies)
+        offset = (id-1)*6
+        F[1+offset:6+offset, 1+offset:6+offset] = ConstrainedDynamics.∂dyn∂vel(mechanism, body)
+    end
     N = length(mechanism.bodies)*6
     for eqc in mechanism.eqconstraints
         L = length(eqc)
@@ -45,15 +65,7 @@ function _updateF!(F::AbstractMatrix, mechanism)
     return nothing
 end
 
-function updateS!(s, v, ω)
-    N = length(v)
-    for (iv, is) in zip(1:N, 1:6:N*6)
-        s[is:is+2] = v[iv]
-        s[is+3:is+5] = ω[iv]
-    end
-end
-
-function updateMechanism!(mechanism::Mechanism, s)
+function myUpdateMechanism!(mechanism, s)
     for (id, body) in enumerate(mechanism.bodies)
         state = body.state
         offset = (id-1)*6
@@ -63,27 +75,24 @@ function updateMechanism!(mechanism::Mechanism, s)
     Nbodies = length(mechanism.bodies)
     offset = Nbodies
     for eqc in mechanism.eqconstraints
-        eqcdim = length(eqc.λsol[1])
+        eqcdim = length(eqc)
         eqc.λsol[2] = s[1+offset:eqcdim+offset]
         offset += eqcdim
     end
 end
 
-function getvel(s, Nbodies)
-    v, ω = Vector{SVector{3, Float64}}(), Vector{SVector{3, Float64}}()
-    for sid in 1:6:Nbodies*6
-        push!(v, SVector{3, Float64}(s[sid:sid+2]))
-        push!(ω, SVector{3, Float64}(s[sid+3:sid+5]))
+function d(mechanism, s)
+    Nbodies = length(mechanism.bodies)
+    myUpdateMechanism!(mechanism, s)
+    d = zeros(MVector{Nbodies*6})
+    for (id, body) in enumerate(mechanism.bodies)
+        myDynamics!(mechanism, body, (id-1)*6, d)
     end
-    return v, ω
-end
-
-function d(s, sᵤ, Gₓ, Nbodies)
-    return sᵤ - s[1:Nbodies*6] + Gₓ'*s[1+Nbodies*6:end]
+    return d
 end
 
 function g(mechanism)
-    Ndims = sum([length(eqc) for eqc in mechanism.eqconstraints])
+    Ndims = sum([length(eqc) for eqc in mechanism.eqconstraints])  # Total dimensionality of constraints
     g = zeros(MVector{Ndims})
     N = 1
     for eqc in mechanism.eqconstraints
@@ -94,46 +103,24 @@ function g(mechanism)
     return g
 end
 
-function resetMechanism!(mechanism, states; overwritesolution = false)
-    for id in 1:length(mechanism.bodies)
-        mechanism.bodies[id].state = deepcopy(states[id])
-        if overwritesolution
-            mechanism.bodies[id].state.vsol[2] = states[id].vc
-            mechanism.bodies[id].state.ωsol[2] = states[id].ωc
-            mechanism.bodies[id].state.xk[1] = states[id].xc + states[id].vc*mechanism.Δt
-            mechanism.bodies[id].state.qk[1] = states[id].qc * ConstrainedDynamics.ωbar(states[id].ωc,mechanism.Δt) * mechanism.Δt / 2
-            mechanism.bodies[id].state.xsol[2] = mechanism.bodies[id].state.xk[1]
-            mechanism.bodies[id].state.qsol[2] = mechanism.bodies[id].state.qk[1]
-        end
-    end
-    # foreach(setsolution!, mechanism.bodies)
-end
-
-function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism; newtonIter = 100, ϵ = 1e-10)
+function _myNewton!(mechanism, s; ϵ = 1e-10, newtonIter = 100)
     Ndims = sum([length(eqc) for eqc in mechanism.eqconstraints])  # Total dimensionality of constraints
     Nbodies = length(mechanism.bodies)
     F = zeros(Nbodies*6 + Ndims, Nbodies*6 + Ndims)  # 3 vel, 3 ω for each body -> 6
-    for i in 1:Nbodies*6 F[i,i] = 1 end
-    s = zeros(MVector{6*Nbodies + Ndims})
-    sᵤ = zeros(MVector{6*Nbodies})
-    updateS!(s, vᵤ, ωᵤ)  # Initial s is [v1, ω1, v2, ω2, ...,  λ1, λ2, ...] with λ = 0
-    updateS!(sᵤ, vᵤ, ωᵤ)
-    updateMechanism!(mechanism, s)
+    myUpdateMechanism!(mechanism, s)
     updateF!(F, mechanism)
-    Gₓ = (F[1:Nbodies*6, 1+Nbodies*6:end])'
-    v, ω = vᵤ, ωᵤ  # Initialize first guess with unconstrained values
-    f(s) = vcat(d(s, sᵤ, Gₓ, Nbodies), g(mechanism))
+    f(s) = vcat(d(mechanism, s), g(mechanism))
     oldΔs = zeros(MVector{6*Nbodies + Ndims})
     for i in 1:newtonIter
         updateF!(F, mechanism, Gᵥonly=true)
         Δs = F\f(s)
-        s -= 0.5/(i) * Δs
-        updateMechanism!(mechanism, s)
-        normΔs = sum((Δs - oldΔs).^2)
+        s -= 0.5 * Δs
+        myUpdateMechanism!(mechanism, s)
+        normΔs = sum((Δs .- oldΔs).^2)
+        oldΔs = Δs
         if normΔs < ϵ
             break
         end
     end
     foreach(ConstrainedDynamics.updatestate!, mechanism.bodies, mechanism.Δt)
-    return getvel(s, Nbodies)
 end

@@ -3,76 +3,17 @@ using ConstrainedDynamicsVis
 using StaticArrays
 using Rotations
 
-function load2Ddata(storage::Storage; coord="max")
-    coord == "max" && return _load2Ddatamax(storage)
-    coord == "min" && return _load2Ddatamin(storage)
-    throw(ArgumentError("Coordinate argument \"$coord\" not supported!"))
-end
-
-function load3Ddata(storage::Storage; coord="max")
-    coord == "max" && return _load3Ddatamax(storage)
-    coord == "min" && return _load3Ddatamin(storage)
-    throw(ArgumentError("Coordinate argument \"$coord\" not supported!"))
-end
-
-function _load2Ddatamax(storage)
-    S = length(storage.x)
-    N = length(storage.x[1])
-    x = [Matrix{Float64}(undef, 6, N) for _ in 1:S]  # 2 pos 1 quat 2 linearV 1 angularV
-    for body_id in 1:S
-        for t in 1:N
-            x[S][1:2,t] = storage.x[body_id][t][2:3]  # Y and Z act as X and Y
-            quat = storage.q[body_id][t]
-            x[S][3,t] = sin(RotXYZ(quat).theta1)  # Sin(θ) acts as quaternion in 2D
-            x[S][4:5,t] = storage.v[body_id][t][2:3]
-            x[S][6,t] = storage.ω[body_id][t][1]
-        end
+function loaddata(storage)
+    Nbodies = length(storage.x)
+    Nsamples = length(storage.x[1])
+    X = Vector{SVector{Nbodies*13, Float64}}()
+    for t = 1:Nsamples
+        sample = [[storage.x[id][t]..., storage.q[id][t].w, storage.q[id][t].x, storage.q[id][t].y, storage.q[id][t].z, storage.v[id][t]..., storage.ω[id][t]...]
+                   for id in 1:Nbodies]
+        sample = reduce(vcat, sample)
+        push!(X, sample)
     end
-    return x
-end
-
-function _load2Ddatamin(storage)
-    S = length(storage.x)
-    N = length(storage.x[1])
-    x = [Matrix{Float64}(undef, 2, N) for _ in 1:S]  # 1 pos 1 velocity
-    for body_id in 1:S
-        for t in 1:N
-            quat = storage.q[body_id][t]
-            x[S][1,t] = RotXYZ(quat).theta1
-            x[S][2,t] = storage.ω[body_id][t][1]
-        end
-    end
-    return x
-end
-
-function _load3Ddatamax(storage)
-    S = length(storage.x)
-    N = length(storage.x[1])
-    x = [Matrix{Float64}(undef, 13, N) for _ in 1:S]  # 3 pos 4 quat 3 linearV 3 angularV
-    for body_id in 1:S
-        for t in 1:N
-            x[S][1:3,t] = storage.x[body_id][t]
-            quat = storage.q[body_id][t]
-            x[S][4:7,t] = [quat.w, quat.x, quat.y, quat.z]
-            x[S][8:10,t] = storage.v[body_id][t]
-            x[S][11:13] = storage.ω[body_id][t]
-        end
-    end
-    return x
-end
-
-function _load3Ddatamin(storage)
-    S = length(storage.x)
-    N = length(storage.x[1])
-    x = [Matrix{Float64}(undef, 6, N) for _ in 1:S]  # 3 pos 3 angularV
-    for body_id in 1:S
-        for t in 1:N
-            euler = RotXYZ(storage.q[body_id][t])
-            x[S][1:3,t] = [euler.theta1, euler.theta2, euler.theta3]
-            x[S][4:6,t] = storage.ω[body_id][t]
-        end
-    end
-    return x
+    return deepcopy(X)
 end
 
 function simplependulum2D()
@@ -102,8 +43,10 @@ function simplependulum2D()
     q1 = UnitQuaternion(RotX(π / 2))
     setPosition!(origin,link1,p2 = p2,Δq = q1)
     setVelocity!(link1)
+
+    initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech,10.,record = true)
-    return storage, mech
+    return storage, mech, initialstates
 end
 
 function doublependulum3D()
@@ -134,8 +77,9 @@ function doublependulum3D()
     setPosition!(origin,link1,p2 = vert11,Δq = q1)
     setPosition!(link1,link2,p1 = vert12,p2 = vert21,Δq = inv(q1)*UnitQuaternion(RotY(0.2)))
 
+    initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech, 10., record = true)
-    return storage, mech
+    return storage, mech, initialstates
 end
 
 function simplependulum3D()
@@ -163,8 +107,9 @@ function simplependulum3D()
     setPosition!(origin,link1,p2 = vert11,Δq = q1)
     setVelocity!(link1, v=[1., 0., 0])
 
+    initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech, 10., record = true)
-    return storage, mech
+    return storage, mech, initialstates
 end
 
 function rotatingcube()
@@ -190,7 +135,7 @@ function rotatingcube()
     mech = Mechanism(origin, links, constraints)
     setPosition!(origin,link1,p2 = vert11,Δq = q1)
     setVelocity!(link1, ω=[1., 1., 1])
-
+    initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech, 10., record = true)
-    return storage, mech
+    return storage, mech, initialstates
 end
