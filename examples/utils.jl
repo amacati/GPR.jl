@@ -12,7 +12,8 @@ end
 function overwritestorage(storage::Storage, state, idx)
     Nbodies = length(storage.x)
     for id in 1:Nbodies
-        storage.x[id][idx] = state[1+((id-1)*13):3+((id-1)*13)]
-        storage.q[id][idx] = UnitQuaternion(state[4+((id-1)*13)], state[5+((id-1)*13):7+((id-1)*13)])
+        offset = (id-1)*13
+        storage.x[id][idx] = state[1+offset:3+offset]
+        storage.q[id][idx] = UnitQuaternion(state[4+offset], state[5+offset:7+offset])
     end
 end

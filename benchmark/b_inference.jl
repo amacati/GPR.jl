@@ -7,9 +7,9 @@ println("Gaussian Process inference benchmark.")
 suite = BenchmarkGroup()
 
 kernel = GaussianKernel(0.5,1.0)
-xtrain = rand(10,100) .* 5  # State size 10
-ytrain = sum(sin.(xtrain), dims=1)
-gpr = GaussianProcessRegressor(xtrain, ytrain, kernel, 0.05)
+xtrain = [SVector{10, Float64}(rand(10) .* 5) for _ in 1:100]  # State size 10
+ytrain = [sum(sin.(sample)) for sample in xtrain]
+gpr = GaussianProcessRegressor(xtrain, ytrain, kernel)
 
 for nsamples in [10, 100]
     local xtest = [SVector{10}(rand(10)) for _ in 1:nsamples]  
@@ -17,6 +17,3 @@ for nsamples in [10, 100]
     suite[nsamples] = @benchmark predict($gpr, $xtest)
     display(suite[nsamples])
 end
-
-#112 μs
-#500 μs

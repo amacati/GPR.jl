@@ -12,11 +12,18 @@ mutable struct GaussianProcessRegressor
     ∇buffer::GPRGradientBuffer
     parameter_gradient::AbstractVector
     log_marginal_likelihood::Real
+    μ::Function
 
-    function GaussianProcessRegressor(X::Vector{<:SVector}, Y::AbstractArray, kernel::AbstractKernel; noisevariance::Real = 0.)
+    function GaussianProcessRegressor(X::Vector{<:SVector}, Y::AbstractArray, kernel::AbstractKernel; noisevariance::Real = 0., μ::Function = _ -> 0)
         Y = reshape(Y, 1, :)
+        display(Y)
+        display(reshape([μ(state) for state in X], 1, :))
+        Y .-= reshape([μ(state) for state in X], 1, :)  # Substract mean function from Y before computing any statistics on it
         Ymean = mean(Y)
+        display(Y)
+        display(Ymean)
         Y .-= Ymean
+        display(Y)
 
         N = length(X)
         _Kxx = Matrix{Float64}(undef, N, N)
@@ -31,9 +38,8 @@ mutable struct GaussianProcessRegressor
             push!(parameter_gradient, -0.5*product_trace(∇buffer.ααTK, Symmetric(∇buffer.∂K∂θ, :L), ∇buffer.tracetmp))
         end
         log_marginal_likelihood = -0.5(Y*α)[1] - sum(log.(diag(chol.L))) - N/2*log(2*pi)
-        new(X, Y, Ymean, kernel, noisevariance, _Kxx, Kxx, chol, α, ∇buffer, parameter_gradient, log_marginal_likelihood)
+        new(X, Y, Ymean, kernel, noisevariance, _Kxx, Kxx, chol, α, ∇buffer, parameter_gradient, log_marginal_likelihood, μ)
     end
-
 end
 
 function updategpr!(gpr, kernel)
@@ -52,23 +58,9 @@ function updategpr!(gpr, kernel)
     return nothing
 end
 
-function predict(gpr::GaussianProcessRegressor, xstar::AbstractMatrix)
-    kstar = compute_kernelmatrix(gpr.X, xstar, gpr.kernel)
-    μ = kstar' * gpr.α .+ gpr.Ymean  # Add mean of Y to retransform into non-zero average output space
-
-    kdoublestar = compute_kerneldiagonal(xstar, gpr.kernel)
-    v = gpr.chol.L \ kstar
-    σ = kdoublestar .- diag(v'*v)
-    return μ, σ  # σ is a vector of the diagonal elements of the covariance matrix
-end
-
-function predict(gpr::GaussianProcessRegressor, xstar::AbstractVector)
-    return predict(gpr, reshape(xstar, :, 1))
-end
-
 function predict(gpr::GaussianProcessRegressor, xstar::Vector{SVector{S,T}}) where {S,T}
     kstar = compute_kernelmatrix(gpr.X, xstar, gpr.kernel)
-    μ = kstar' * gpr.α .+ gpr.Ymean  # Add mean of Y to retransform into non-zero average output space
+    μ = kstar' * gpr.α .+ gpr.Ymean .+ [gpr.μ(x) for x in xstar] # Add mean of Y to retransform into non-zero average output space
 
     kdoublestar = compute_kerneldiagonal(xstar, gpr.kernel)
     v = gpr.chol.L \ kstar

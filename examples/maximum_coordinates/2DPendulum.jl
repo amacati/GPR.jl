@@ -28,7 +28,7 @@ gprω1 = GaussianProcessRegressor(X, Yω1, copy(kernel))
 gprω2 = GaussianProcessRegressor(X, Yω2, copy(kernel))
 gprω3 = GaussianProcessRegressor(X, Yω3, copy(kernel))
 gprs = [gprv1, gprv2, gprv3, gprω1, gprω2, gprω3]
-for gpr in gprs
+Threads.@threads for gpr in gprs
     optimize!(gpr)
 end
 
@@ -41,7 +41,7 @@ function predictvel(gprs::Vector{GaussianProcessRegressor}, state)
 end
 
 state = getstate(mechanism)
-project = false
+project = true
 for idx in 2:1000
     global state
     v, ω = predictvel(gprs, state)

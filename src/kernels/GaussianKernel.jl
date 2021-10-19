@@ -3,24 +3,31 @@ mutable struct GaussianKernel<:AbstractKernel
     σ²::Real
     λ::Real
     λ²::Real
+    Nparams::Integer
+
     _2σ::Real
     _2λ²::Real
-    _buffer::Vector{Float64}  # Used in compute to avoid memory allocation
+    _buffer::MVector{5,Float64}  # Used in compute to avoid memory allocation
 
     function GaussianKernel(σ::Real, λ::Real)
-        new(σ, σ^2, λ, λ^2, 2σ, 2λ^2, zeros(5))
+        new(σ, σ^2, λ, λ^2, 2, 2σ, 2λ^2, zeros(MVector{5}))
     end
 end
 
 # Modify kernel in place to avoid creating new kernel objects in optimizations.
-function modifykernel(kernel::GaussianKernel, σ::Real, λ::Real)
-    kernel.σ = σ
-    kernel.σ² = σ^2
-    kernel.λ = λ
-    kernel.λ² = λ^2
-    kernel._2σ = 2σ
-    kernel._2λ² = 2λ^2
+function modifykernel!(kernel::GaussianKernel, param::AbstractArray)
+    @assert length(param) == kernel.Nparams ("param vector has wrong number of parameters!")
+    kernel.σ = param[1]
+    kernel.σ² = param[1]^2
+    kernel.λ = param[2]
+    kernel.λ² = param[2]^2
+    kernel._2σ = 2param[1]
+    kernel._2λ² = 2param[2]^2
     return kernel
+end
+
+function getinitialparams(kernel::GaussianKernel)
+    return [kernel.σ, kernel.λ]
 end
 
 @inline function compute(kernel::GaussianKernel, x1::AbstractArray, x2::AbstractArray)
@@ -37,14 +44,14 @@ end
     target[idx...] = kernel.σ² * kernel._buffer[2]  # kernel.σ² * exp(-dot(r, r)/2kernel.λ²)
 end
 
-function ∂K∂σ!(kernel::GaussianKernel, X::AbstractMatrix, target::AbstractMatrix)
+@inline function ∂K∂σ!(kernel::GaussianKernel, X::AbstractMatrix, target::AbstractMatrix)
     for i in 1:size(X,2), j in 1:i
         _∂K∂σ!(kernel, X[:,i], X[:,j], target, (i,j))
     end
     return Symmetric(target, :L)
 end
 
-function ∂K∂σ!(kernel::GaussianKernel, X::Vector{SVector{S, T}}, target::AbstractMatrix) where {S,T}
+@inline function ∂K∂σ!(kernel::GaussianKernel, X::Vector{SVector{S, T}}, target::AbstractMatrix) where {S,T}
     for i in 1:length(X), j in 1:i
         _∂K∂σ!(kernel, X[i], X[j], target, (i,j))
     end
@@ -58,14 +65,7 @@ end
     target[idx...] = kernel._2σ * kernel._buffer[2]  # 2kernel.σ * exp(-dot(r,r)/2kernel.λ²)
 end
 
-function ∂K∂λ!(kernel::GaussianKernel, X::AbstractMatrix, target::AbstractMatrix)
-    for i in 1:size(X,2), j in 1:i
-        _∂K∂λ!(kernel, X[:,i], X[:,j], target, (i,j))
-    end
-    return Symmetric(target, :L)
-end
-
-function ∂K∂λ!(kernel::GaussianKernel, X::Vector{SVector{S, T}}, target::AbstractMatrix) where {S,T}
+@inline function ∂K∂λ!(kernel::GaussianKernel, X::Vector{SVector{S, T}}, target::AbstractMatrix) where {S,T}
     for i in 1:length(X), j in 1:i
         _∂K∂λ!(kernel, X[i], X[j], target, (i,j))
     end
