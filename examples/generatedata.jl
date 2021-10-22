@@ -16,15 +16,28 @@ function loaddata(storage)
     return deepcopy(X)
 end
 
+function cleardata!(data; ϵ = 1e-2)
+    correlatedset = Set{Int}()
+    for i in 1:length(data)
+        if i in correlatedset
+            continue
+        end
+        for j in i+1:length(data)
+            if sum((data[i]-data[j]).^2) < ϵ
+                push!(correlatedset, j)
+            end
+        end
+    end
+    deleteat!(data, sort!(collect(correlatedset)))
+end
+
 function simplependulum2D()
     joint_axis = [1.0; 0.0; 0.0]
-
     Δt=0.01
     g = -9.81
     m = 1.0
     l = 1.0
     r = 0.01
-
     p2 = [0.0;0.0;l / 2] # joint connection point
 
     # Links
@@ -33,10 +46,8 @@ function simplependulum2D()
 
     # Constraints
     joint_between_origin_and_link1 = EqualityConstraint(Revolute(origin, link1, joint_axis; p2=p2))
-
     links = [link1]
     constraints = [joint_between_origin_and_link1]
-
 
     mech = Mechanism(origin, links, constraints, g=g,Δt=Δt)
 
@@ -49,7 +60,7 @@ function simplependulum2D()
     return storage, mech, initialstates
 end
 
-function doublependulum3D()
+function doublependulum2D()
     # Parameters
     l1 = 1.0
     l2 = sqrt(2) / 2
@@ -57,6 +68,8 @@ function doublependulum3D()
     vert11 = [0.;0.;l1 / 2]
     vert12 = -vert11
     vert21 = [0.;0.;l2 / 2]
+    joint_axis1 = [1.0; 0.0; 0.0]
+    joint_axis2 = [1.0; 0.0; 0.0]
 
     # Initial orientation
     phi1 = pi / 4
@@ -68,12 +81,13 @@ function doublependulum3D()
     link2 = Box(x, y, l2, l2, color = RGBA(1., 1., 0.))
 
     # Constraints
-    socket0to1 = EqualityConstraint(Spherical(origin, link1; p2=vert11))
-    socket1to2 = EqualityConstraint(Spherical(link1, link2; p1=vert12, p2=vert21))
-
+    socket0to1 = EqualityConstraint(Revolute(origin, link1, joint_axis1; p2=vert11))
+    socket1to2 = EqualityConstraint(Revolute(link1, link2, joint_axis2; p1=vert12, p2=vert21))
     links = [link1;link2]
     constraints = [socket0to1;socket1to2]
+
     mech = Mechanism(origin, links, constraints)
+
     setPosition!(origin,link1,p2 = vert11,Δq = q1)
     setPosition!(link1,link2,p1 = vert12,p2 = vert21,Δq = inv(q1)*UnitQuaternion(RotY(0.2)))
 
@@ -106,6 +120,39 @@ function simplependulum3D()
     mech = Mechanism(origin, links, constraints)
     setPosition!(origin,link1,p2 = vert11,Δq = q1)
     setVelocity!(link1, v=[1., 0., 0])
+
+    initialstates = [deepcopy(body.state) for body in mech.bodies]
+    storage = simulate!(mech, 10., record = true)
+    return storage, mech, initialstates
+end
+
+function doublependulum3D()
+    # Parameters
+    l1 = 1.0
+    l2 = sqrt(2) / 2
+    x, y = .1, .1
+    vert11 = [0.;0.;l1 / 2]
+    vert12 = -vert11
+    vert21 = [0.;0.;l2 / 2]
+
+    # Initial orientation
+    phi1 = pi / 4
+    q1 = UnitQuaternion(RotX(phi1))
+
+    # Links
+    origin = Origin{Float64}()
+    link1 = Box(x, y, l1, l1, color = RGBA(1., 1., 0.))
+    link2 = Box(x, y, l2, l2, color = RGBA(1., 1., 0.))
+
+    # Constraints
+    socket0to1 = EqualityConstraint(Spherical(origin, link1; p2=vert11))
+    socket1to2 = EqualityConstraint(Spherical(link1, link2; p1=vert12, p2=vert21))
+
+    links = [link1;link2]
+    constraints = [socket0to1;socket1to2]
+    mech = Mechanism(origin, links, constraints)
+    setPosition!(origin,link1,p2 = vert11,Δq = q1)
+    setPosition!(link1,link2,p1 = vert12,p2 = vert21,Δq = inv(q1)*UnitQuaternion(RotY(0.2)))
 
     initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech, 10., record = true)

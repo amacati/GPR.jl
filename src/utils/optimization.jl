@@ -2,14 +2,14 @@ using BenchmarkTools
 
 function optimize!(gpr::GaussianProcessRegressor; verbose::Bool = false)
     kernel = gpr.kernel
-    lower = ones(kernel.Nparams) * 1e-5
-    upper = ones(kernel.Nparams) * Inf
-    initialparams = getinitialparams(kernel)
+    lower = ones(kernel.nparams) * 1e-5
+    upper = ones(kernel.nparams) * Inf
+    initialparams = getparams(kernel)
     function fg!(F, G, x)
         try
             modifykernel!(kernel, x)
             updategpr!(gpr, kernel)
-            G !== nothing ? G[:] = gpr.parameter_gradient[:] : nothing
+            G !== nothing ? G[:] = gpr.parametergradient[:] : nothing
             F !== nothing && return - gpr.log_marginal_likelihood  # using negative to minimize instead of maximize log likelihood
         catch
             G !== nothing ? G[:] .= 0 : nothing
@@ -25,9 +25,15 @@ function optimize!(gpr::GaussianProcessRegressor; verbose::Bool = false)
     return gpr
 end
 
-function optimize!(mogpr::MOGaussianProcessRegressor)
-    for gpr in mogpr
-        _optimize!(gpr, gpr.kernel)  # Dispatch depending on used kernel
+function optimize!(mogpr::MOGaussianProcessRegressor; verbose::Bool = False, threading::Bool = true)
+    if threading
+        Threads.@threads for gpr in mogpr
+            optimize!(gpr; verbose=verbose)
+        end
+    else
+        for gpr in mogpr
+            optimize!(gpr; verbose=verbose)
+        end
     end
     return mogpr
 end

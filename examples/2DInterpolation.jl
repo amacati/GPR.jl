@@ -21,10 +21,10 @@ x2 = collect(repeat(range(-5, length=10, stop=5), inner=10))
 
 xtrain = [SVector(x1i,x2i) for (x1i, x2i) in zip(x1, x2)]
 ytrain = [sin.(xi[1]) .* cos.(xi[2]) for xi in xtrain]
-display(ytrain)
 
 kernel = GaussianKernel(2, 0.2)
 kernel = GeneralGaussianKernel(2, ones(2)*4)
+kernel = CompositeKernel([GaussianKernel(2, 0.2), GaussianKernel(2, 0.2)], [1,1])
 regressor = GaussianProcessRegressor(xtrain, ytrain, kernel)
 println("Initial Marginal Likelihood: $(regressor.log_marginal_likelihood)")  # -164.29517869120883
 optimize!(regressor)

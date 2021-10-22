@@ -9,9 +9,11 @@ using ConstrainedDynamicsVis
 using Rotations
 
 export GaussianProcessRegressor
+export MOGaussianProcessRegressor
 export AbstractKernel
 export GaussianKernel
 export GeneralGaussianKernel
+export QuaternionKernel
 export CompositeKernel
 export predict
 export predict_full
@@ -21,7 +23,7 @@ export resetMechanism!
 export updateMechanism!
 export projectv!
 
-export modifykernel!
+export getparams
 
 include(joinpath("kernels", "AbstractKernel.jl"))
 include(joinpath("projections", "implicitProjection.jl"))

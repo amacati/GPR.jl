@@ -19,7 +19,11 @@ Yω2 = [sample[12] for sample in data[3:steps:end]]
 Yω3 = [sample[13] for sample in data[3:steps:end]]
 
 # kernel = GaussianKernel(0.5, 0.2)
-kernel = GeneralGaussianKernel(0.5, ones(13)*1.5)  # 4., 0.5
+# kernel = GeneralGaussianKernel(0.5, ones(13)*1.5)  # 4., 0.5
+pkernel = GeneralGaussianKernel(0.5, ones(3)*1.5)
+qkernel = QuaternionKernel(0.5, ones(3)*2)
+vkernel = GeneralGaussianKernel(0.5, ones(6)*1.5)
+kernel = CompositeKernel([pkernel, qkernel, vkernel], [3, 4, 6])
 gprv1 = GaussianProcessRegressor(X, Yv1, copy(kernel))
 gprv2 = GaussianProcessRegressor(X, Yv2, copy(kernel))
 gprv3 = GaussianProcessRegressor(X, Yv3, copy(kernel))
@@ -28,7 +32,7 @@ gprω2 = GaussianProcessRegressor(X, Yω2, copy(kernel))
 gprω3 = GaussianProcessRegressor(X, Yω3, copy(kernel))
 gprs = [gprv1, gprv2, gprv3, gprω1, gprω2, gprω3]
 Threads.@threads for gpr in gprs
-    optimize!(gpr, verbose=true)
+    optimize!(gpr, verbose=false)
 end
 
 function predictvel(gprs::Vector{GaussianProcessRegressor}, state)
