@@ -3,7 +3,7 @@ using ConstrainedDynamicsVis
 using StaticArrays
 using Rotations
 
-function loaddata(storage)
+function loaddata(storage; coordinates="maximal", mechanism = nothing)
     Nbodies = length(storage.x)
     Nsamples = length(storage.x[1])
     X = Vector{SVector{Nbodies*13, Float64}}()
@@ -13,7 +13,10 @@ function loaddata(storage)
         sample = reduce(vcat, sample)
         push!(X, sample)
     end
-    return deepcopy(X)
+    coordinates == "maximal" && return X
+    mechanism === nothing && throw(ArgumentError("Loading data in non-maximal coordinates needs a mechanism argument!"))
+    coordinates == "minimal" && return max2mincoordinates(X, mechanism)
+    throw(ArgumentError("Coordinates setting $coordinates not supported!"))
 end
 
 function cleardata!(data; ϵ = 1e-2)
@@ -29,6 +32,36 @@ function cleardata!(data; ϵ = 1e-2)
         end
     end
     deleteat!(data, sort!(collect(correlatedset)))
+end
+
+function max2mincoordinates(data, mechanism)
+    mindata = Vector{SVector}()
+    for maxstates in data
+        states = [vector2state(maxstates[i:i+12]) for i in 1:13:length(maxstates)-12]
+        resetMechanism!(mechanism, states)
+        minstates = Vector{Float64}()
+        for eqc in mechanism.eqconstraints
+            append!(minstates, ConstrainedDynamics.minimalCoordinates(mechanism, eqc))
+            append!(minstates, ConstrainedDynamics.minimalVelocities(mechanism, eqc))
+        end
+        push!(mindata, SVector(minstates...))
+    end
+    return mindata
+end
+
+function min2maxcoordinates(data, mechanism)
+    maxdata = Vector{Vector{Float64}}()
+    N = 0
+    for minstates in data
+        for eqc in mechanism.eqconstraints
+            Nc = length(eqc.constraints)
+            ConstrainedDynamics.setPosition!(mechanism, eqc, [minstates[N+1:N+Nc]])
+            ConstrainedDynamics.setVelocity!(mechanism, eqc, [minstates[N+Nc+1:N+2Nc]])
+            N += 2Nc
+        end
+        push!(maxdata, SVector(vcat(getstates(mechanism)...)))
+    end
+    return maxdata
 end
 
 function simplependulum2D()

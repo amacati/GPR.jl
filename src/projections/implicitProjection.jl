@@ -94,19 +94,12 @@ function g(mechanism)
     return g
 end
 
-function resetMechanism!(mechanism, states; overwritesolution = false)
+function resetMechanism!(mechanism, states)
     for id in 1:length(mechanism.bodies)
         mechanism.bodies[id].state = deepcopy(states[id])
-        if overwritesolution
-            mechanism.bodies[id].state.vsol[2] = states[id].vc
-            mechanism.bodies[id].state.ωsol[2] = states[id].ωc
-            mechanism.bodies[id].state.xk[1] = states[id].xc + states[id].vc*mechanism.Δt
-            mechanism.bodies[id].state.qk[1] = states[id].qc * ConstrainedDynamics.ωbar(states[id].ωc,mechanism.Δt) * mechanism.Δt / 2
-            mechanism.bodies[id].state.xsol[2] = mechanism.bodies[id].state.xk[1]
-            mechanism.bodies[id].state.qsol[2] = mechanism.bodies[id].state.qk[1]
-        end
     end
-    # foreach(setsolution!, mechanism.bodies)
+    ConstrainedDynamics.discretizestate!(mechanism)
+    foreach(ConstrainedDynamics.setsolution!, mechanism.bodies)
 end
 
 function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism; newtonIter = 100, ϵ = 1e-10)
@@ -134,6 +127,5 @@ function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism;
             break
         end
     end
-    foreach(ConstrainedDynamics.updatestate!, mechanism.bodies, mechanism.Δt)
     return getvel(s, Nbodies)
 end

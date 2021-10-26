@@ -1,92 +1,105 @@
 using GPR
 using ConstrainedDynamicsVis
+using ConstrainedDynamics
+using Plots
+using StatsBase: sample
+
 
 include(joinpath("..", "generatedata.jl"))
 include(joinpath("..", "utils.jl"))
 
 
-storage, mechanism, initialstates = simplependulum2D()
-data = loaddata(storage)
-resetMechanism!(mechanism, initialstates, overwritesolution = true)  # Reset mechanism to starting position
-steps = 30
+params_vec = collect(Iterators.product(0.1:0.5:10.1, 0.1:0.5:10.1, 0.1:0.5:10.1))
+nprocessed = 0
+tstart = time()
+paramlock = ReentrantLock()
+errorlock = ReentrantLock()
 
-function vec2state(x)
-    state = Vector()
-    for i in 0:13:length(x)-1
-        s = ConstrainedDynamics.State{Float64}()
-        s.xc = x[1+i:3+i]
-        s.qc = UnitQuaternion(x[4+i], x[5+i:7+i])
-        s.vc = x[8+i:10+i]
-        s.ωc = x[11+i:13+i]
-        push!(state, s)
-    end
-    return state
-end
+onestep_msevec = Vector{Float64}()
+onestep_params = Vector{Vector{Float64}}()
 
-function max2mincoordinates(data, mechanism)
-    mindata = Vector{SVector}()
-    for state in data
-        state = vec2state(state)
-        resetMechanism!(mechanism, state)
-        minstate = Vector{Float64}()
-        for eqc in mechanism.eqconstraints
-            append!(minstate, ConstrainedDynamics.minimalCoordinates(mechanism, eqc))
-            append!(minstate, ConstrainedDynamics.minimalVelocities(mechanism, eqc))
+Threads.@threads for _ in 1:length(params_vec)
+    # Get hyperparameters (threadsafe)
+    global nprocessed
+    params = []
+    lock(paramlock)
+    try
+        @assert nprocessed < length(params_vec)
+        params = params_vec[nprocessed+1]
+        nprocessed += 1
+        if nprocessed % 10 == 0
+            println("Processing job $nprocessed/$(length(params_vec))")
+            Δt = time() - tstart
+            secs = Int(round(Δt*(length(params_vec)/nprocessed-1)))
+            hours = div(secs, 3600)
+            minutes = div(secs-hours*3600, 60)
+            secs -= (hours*3600 + minutes * 60)
+            println("Estimated time to completion: $(hours)h, $(minutes)m, $(secs)h")
         end
-        push!(mindata, SVector(minstate...))
+    catch e
+        display(e)
+        continue
+    finally
+        unlock(paramlock)
     end
-    return mindata
-end
 
-function min2maxcoordinates(data, mechanism)
-    maxdata = Vector{Vector{Float64}}()
-    for state in data
-        maxstate = Vector{Float64}()
-        for eqc in mechanism.eqconstraints
-            ConstrainedDynamics.setPosition!(mechanism, eqc, [state[1]])
-            ConstrainedDynamics.setVelocity!(mechanism, eqc, [state[2]])
-            append!(maxstate, getstate(mechanism))
+    onestep_mse = Inf
+    for _ in 1:5
+        try
+            storage, mechanism, initialstates = simplependulum2D()
+            data = loaddata(storage; coordinates="minimal", mechanism = mechanism)
+            data = [SVector(state[1], state[2]) for state in data]
+            cleardata!(data)
+            nsamples = Int(round(length(data)/5))
+            sampleidx = sample(1:length(data)-1, nsamples; replace = false)
+
+            X = data[sampleidx]
+            Yω = [s[2] for s in data[sampleidx.+1]]
+
+            kernel = GeneralGaussianKernel(params[1], [params[2:3]...])
+            gprω = GaussianProcessRegressor(X, Yω, kernel)
+            optimize!(gprω)
+
+            resetMechanism!(mechanism, initialstates)
+            foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)
+            maxstates = getstates(mechanism)
+            states = max2mincoordinates(maxstates, mechanism)[1]
+            θ, ω = states[1], states[2]
+            for i in 2:length(storage.x[1])
+                ω = GPR.predict(gprω, SVector(θ, ω))[1][1]
+                θ += ω*mechanism.Δt
+                #=ConstrainedDynamics.setVelocity!(mechanism, mechanism.eqconstraints[2], [ω])  # Pendulum only has 1 eqc
+                ConstrainedDynamics.setPosition!(mechanism, mechanism.eqconstraints[2], [θ])
+                foreachactive(discretizestate!, mechanism.bodies, mechanism.Δt)
+                foreachactive(setsolution!, mechanism.bodies)  # Set ω as solution ωsol[2]
+                foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)
+                maxstates = getstates(mechanism)
+                overwritestorage(storage, maxstates, i)
+                θ = ConstrainedDynamics.minimalCoordinates(mechanism, mechanism.eqconstraints[2])[1]
+                maxstates = getstates(mechanism)
+                overwritestorage(storage, maxstates, i)=#
+                storage.x[1][i] = [0, 0.5sin(θ), -0.5cos(θ)]
+                storage.q[1][i] = UnitQuaternion(RotX(θ))
+            end
+
+            onestep_mse = min(onestep_mse, onesteperror(mechanism, storage))
+        catch e
         end
-        push!(maxdata, maxstate)
     end
-    return maxdata
+    lock(errorlock)
+    try
+        # println("One step mean squared error: $onestep_mse")
+        push!(onestep_msevec, onestep_mse)
+        push!(onestep_params, [params...])
+    catch e
+        display(e)
+    finally
+        unlock(errorlock)
+    end
 end
 
-mindata = max2mincoordinates(data, mechanism)
-resetMechanism!(mechanism, initialstates, overwritesolution = true)  # Reset mechanism to starting position
-
-X = mindata[1:steps:end-1]
-Yθ = [sample[1] for sample in mindata[2:steps:end]]
-Yω = [sample[2] for sample in mindata[2:steps:end]]
-
-kernel = GeneralGaussianKernel(0.5, ones(2)*0.2)
-gprθ = GaussianProcessRegressor(X, Yθ, copy(kernel))
-gprω = GaussianProcessRegressor(X, Yω, copy(kernel))
-gprs = [gprθ, gprω]
-Threads.@threads for gpr in gprs
-    optimize!(gpr)
-end
-
-function predictθω(gprs, state)
-    θ = predict(gprs[1], state)[1][1]
-    ω = predict(gprs[2], state)[1][1]
-    return θ, ω
-end
-
-state = getstate(mechanism)
-state = max2mincoordinates([state], mechanism)[1]
-for idx in 2:1000
-    global state
-    θ, ω = predictθω(gprs, state)
-    state = SVector(θ, ω)
-    maxstate = min2maxcoordinates([state], mechanism)[1]
-    overwritestorage(storage, maxstate, idx)
-end
-
-mse = 0
-for i in 1:length(data)
-    mse += sum(sum((data[i][1:3]-storage.x[1][i]).^2))/3length(data)
-end
-println("Mean squared error: $mse")
-
-ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+println("Best one step mean squared error: $(minimum(onestep_msevec))")
+plt = plot(1:length(onestep_msevec), onestep_msevec, yaxis=:log, seriestype = :scatter, title="Pendulum position one step MSE ", label = "pos MSE")
+xlabel!("Trial")
+savefig(plt, "2Dpendulum_min_GeneralGaussianKernel")
+# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")

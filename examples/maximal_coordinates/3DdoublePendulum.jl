@@ -1,4 +1,5 @@
 using GPR
+using ConstrainedDynamics: foreachactive, updatestate!
 using ConstrainedDynamicsVis
 
 include(joinpath("..", "generatedata.jl"))
@@ -7,7 +8,7 @@ include(joinpath("..", "utils.jl"))
 
 storage, mechanism, initialstates = doublependulum3D()
 data = loaddata(storage)
-resetMechanism!(mechanism, initialstates, overwritesolution = true)  # Reset mechanism to starting position
+resetMechanism!(mechanism, initialstates)  # Reset mechanism to starting position
 
 steps = 11
 start = 1
@@ -32,21 +33,23 @@ for Y in [Yv11, Yv12, Yv13, Yv21, Yv22, Yv23, Yω11, Yω12, Yω13, Yω21, Yω22,
     push!(gprs, GaussianProcessRegressor(X, Y, copy(kernel)))
 end
 mogpr = MOGaussianProcessRegressor(gprs)
-optimize!(mogpr, verbose=false)
+# optimize!(mogpr, verbose=false)
 
-state = getstate(mechanism)
-for idx in 2:1000
-    μ = GPR.predict(mogpr, [state])[1][1]
+
+foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # New position, old velocity
+states = getstates(mechanism)
+for i in 2:1000
+    μ = GPR.predict(mogpr, [SVector(reduce(vcat, states)...)])[1][1]
     v, ω = [SVector(μ[1:3]...), SVector(μ[4:6]...)], [SVector(μ[7:9]...), SVector(μ[10:12]...)]
     projectv!(v, ω, mechanism)
-    state = getstate(mechanism)
-    overwritestorage(storage, state, idx)
+    foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)
+    states = getstates(mechanism)
+    overwritestorage(storage, states, i)
 end
 
-mse = 0
-for i in 1:length(data)
-    mse += sum(sum((data[i][1:3]-storage.x[1][i]).^2))/3length(data)
-end
+mse = onesteperror(mechanism, storage)
+# resetMechanism!(mechanism, initialstates, overwritesolution = true)  # Reset mechanism to starting position
+
 println("Mean squared error: $mse")
 
-ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")

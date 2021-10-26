@@ -8,17 +8,16 @@ include(joinpath("..", "utils.jl"))
 
 
 storage, mechanism, initialstates = simplependulum2D()
-gtdata = loaddata(storage)
-data = deepcopy(gtdata)
+data = loaddata(storage)
 cleardata!(data)
 
 nsamples = Int(round(length(data)/5))
-nruns = 30
+nruns = 100
 
-mesvec = Vector{Float64}()
+onestep_msevec = Vector{Float64}()
 for _ in 1:nruns
     try
-        resetMechanism!(mechanism, initialstates, overwritesolution = true)  # Reset mechanism to starting position
+        resetMechanism!(mechanism, initialstates)  # Reset mechanism to starting position
         sampleidx = sample(1:length(data)-1, nsamples; replace = false)  # Draw random training samples
 
         X = data[sampleidx]
@@ -42,28 +41,26 @@ for _ in 1:nruns
         mogpr = MOGaussianProcessRegressor(gprs)
         optimize!(mogpr, verbose=false)
 
-        state = getstate(mechanism)
-        project = true
-        for idx in 2:length(storage.x[1])
-            global state
-            μ = GPR.predict(mogpr, [state])[1][1]
-            v, ω = SVector(μ[1:3]...), SVector(μ[4:6]...)
-            projectv!([v], [ω], mechanism)
-            state = getstate(mechanism)
-            overwritestorage(storage, state, idx)
+        foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)
+        states = getstates(mechanism)
+        for i in 2:length(storage.x[1])
+            μ = GPR.predict(mogpr, [SVector(reduce(vcat, states)...)])[1][1]
+            v, ω = [SVector(μ[1:3]...)], [SVector(μ[4:6]...)]
+            projectv!(v, ω, mechanism)
+            foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)
+            states = getstates(mechanism)
+            overwritestorage(storage, states, i)
         end
 
-        mse = 0
-        for i in 1:length(storage.x[1])
-            mse += sum(sum((gtdata[i][1:3]-storage.x[1][i]).^2))/3length(data)
-        end
-        println("Mean squared error: $mse")
-        push!(mesvec, mse)
-    catch
+        onestep_mse = onesteperror(mechanism, storage)
+        println("One step mean squared error: $onestep_mse")
+        push!(onestep_msevec, onestep_mse)
+    catch e
+        display(e)
     end
 end
 # ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
-
-plt = plot(1:length(mesvec), mesvec, seriestype = :scatter, yaxis=:log, title="Pendulum position MSE ", label = "pos MSE")
+println("Best one step mean squared error: $(minimum(onestep_msevec))")
+plt = plot(1:length(onestep_msevec), onestep_msevec, seriestype = :scatter, yaxis=:log, title="Pendulum position one step MSE ", label = "pos MSE")
 xlabel!("Trial")
 savefig(plt, "2Dpendulum_GeneralGaussianKernel")
