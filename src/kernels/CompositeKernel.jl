@@ -6,7 +6,9 @@ struct CompositeKernel<:AbstractKernel
 
     function CompositeKernel(kernels::Vector{<:AbstractKernel}, kerneldims::Vector{<:Integer})
         @assert length(kernels) == length(kerneldims)  ("Number of kernel dimensions has to equal number of kernels!")
-        new(kernels, kerneldims, length(kernels), sum([kernel.nparams for kernel in kernels]))
+        nparams = sum([kernel.nparams for kernel in kernels])
+        nkernels = length(kernels)
+        new(kernels, kerneldims, nkernels, nparams)
     end
 end
 
@@ -29,9 +31,8 @@ end
     end
 end
 
-function _chained_derivative!(compositekernel, X, target, kernelid, ∂id)
+function _chained_derivative!(compositekernel, X, target, kernelid, ∂K∂θi)
     kernel = compositekernel.kernels[kernelid]
-    ∂K∂θi = get_derivative_handles(kernel)[∂id]
     N = sum(compositekernel.kerneldims[1:kernelid-1]) + 1
     ∂K∂θi(kernel, [@view i[N:N+compositekernel.kerneldims[kernelid]-1] for i in X], target)  # Overwrites the target with values of ∂K∂θi
     N = 1  # Each kernel is responsible for processing kernel.N dimensions of the state
@@ -48,11 +49,13 @@ function _chained_derivative!(compositekernel, X, target, kernelid, ∂id)
     return Symmetric(target, :L)
 end
 
+# Careful when operating on changing datasets! Cache does not check if the dataset has changed and can become stale!
 function get_derivative_handles(compositekernel::CompositeKernel)
     derivative_handles = Vector{Function}(undef, compositekernel.nparams)
+    ∂K∂θ = [[get_derivative_handles(kernel)[∂id] for ∂id in 1:kernel.nparams] for kernel in compositekernel]
     N = 1
     for (kernelid, kernel) in enumerate(compositekernel)
-        derivative_handles[N:N+kernel.nparams-1] = [chained_derivative!(ckernel, X, target) = _chained_derivative!(ckernel, X, target, kernelid, ∂id) for ∂id in 1:kernel.nparams]
+        derivative_handles[N:N+kernel.nparams-1] = [chained_derivative!(ckernel, X, target) = _chained_derivative!(ckernel, X, target, kernelid, ∂K∂θ[kernelid][∂id]) for ∂id in 1:kernel.nparams]
         N += kernel.nparams
     end
     return derivative_handles
@@ -87,17 +90,3 @@ end
 function Base.copy(s::CompositeKernel)
     return CompositeKernel([copy(kernel) for kernel in s], s.kerneldims)
 end
-#=
-mutable struct CompositeKernelCache
-    kerneldims::Vector{<:Integer}
-    nkernels::Integer
-    nparams::Integer
-    cacheparams::Vector{Float64}
-    fcache::Vector{AbstractMatrix}
-    ∂cache::Vector{Vector{AbstractMatrix}}
-
-    function CompositeKernelCache(kerneldims, nkernels, nparams)
-        new(kerneldims, nkernels, nparams, [], [], [])
-    end
-end
-=#
