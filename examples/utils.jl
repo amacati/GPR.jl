@@ -1,4 +1,5 @@
 using Rotations
+using JSON
 using ConstrainedDynamics: Storage, updatestate!, State, Mechanism, newton!, foreachactive, setsolution!, discretizestate!
 
 function vector2state(vstate)
@@ -66,4 +67,20 @@ function onesteperror(mechanism, predictions::Storage; stop = length(predictions
     end
     error /= (3*Nbodies*stop)
     return error
+end
+
+function checkpoint(experimentid::String, checkpointdict::Dict)
+    open(experimentid*"_checkpoint.json","w") do f
+        JSON.print(f, checkpointdict)
+    end
+end
+
+function loadcheckpoint(experimentid::String)
+    checkpointdict = Dict()
+    # If there is no checkpoint, default to empty dictionary
+    !Base.Filesystem.isfile(experimentid*"_checkpoint.json") && (return false, checkpointdict)
+    open(experimentid*"_checkpoint.json","r") do f
+        checkpointdict = JSON.parse(f)
+    end
+    return true, checkpointdict
 end

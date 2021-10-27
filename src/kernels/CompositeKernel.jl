@@ -5,6 +5,7 @@ struct CompositeKernel<:AbstractKernel
     nparams::Integer
 
     function CompositeKernel(kernels::Vector{<:AbstractKernel}, kerneldims::Vector{<:Integer})
+        @assert length(kernels) == length(kerneldims)  ("Number of kernel dimensions has to equal number of kernels!")
         new(kernels, kerneldims, length(kernels), sum([kernel.nparams for kernel in kernels]))
     end
 end
@@ -86,3 +87,17 @@ end
 function Base.copy(s::CompositeKernel)
     return CompositeKernel([copy(kernel) for kernel in s], s.kerneldims)
 end
+#=
+mutable struct CompositeKernelCache
+    kerneldims::Vector{<:Integer}
+    nkernels::Integer
+    nparams::Integer
+    cacheparams::Vector{Float64}
+    fcache::Vector{AbstractMatrix}
+    ∂cache::Vector{Vector{AbstractMatrix}}
+
+    function CompositeKernelCache(kerneldims, nkernels, nparams)
+        new(kerneldims, nkernels, nparams, [], [], [])
+    end
+end
+=#

@@ -59,7 +59,8 @@ function predict(gpr::GaussianProcessRegressor, xstar::Vector{SVector{S,T}}) whe
     μ = kstar' * gpr._α .+ gpr._μY .+ [gpr.μ(x) for x in xstar] # Add mean of Y to retransform into non-zero average output space
     kdoublestar = compute_kerneldiagonal(xstar, gpr.kernel)
     v = gpr._Chol.L \ kstar
-    σ = kdoublestar .- diag(v'*v)
+    diagvTv = [dot(v[:,i],v[:,i]) for i in 1:size(v,2)]  # equivalent of diag(v'*v) without full matrix multiplication
+    σ = kdoublestar .- diagvTv
     return μ, σ  # σ is a vector of the diagonal elements of the covariance matrix
 end
 

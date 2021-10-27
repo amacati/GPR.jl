@@ -113,17 +113,15 @@ function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism;
     updateS!(sᵤ, vᵤ, ωᵤ)
     updateMechanism!(mechanism, s)
     updateF!(F, mechanism)
-    Gₓ = (F[1:Nbodies*6, 1+Nbodies*6:end])'
-    v, ω = vᵤ, ωᵤ  # Initialize first guess with unconstrained values
+    Gₓ = (@view F[1:Nbodies*6, 1+Nbodies*6:end])'
     f(s) = vcat(d(s, sᵤ, Gₓ, Nbodies), g(mechanism))
     oldΔs = zeros(MVector{6*Nbodies + Ndims})
-    for i in 1:newtonIter
+    for _ in 1:newtonIter
         updateF!(F, mechanism, Gᵥonly=true)
         Δs = F\f(s)
-        s -= 0.5/(i) * Δs
+        s -= 0.5 * Δs
         updateMechanism!(mechanism, s)
-        normΔs = sum((Δs - oldΔs).^2)
-        if normΔs < ϵ
+        if sum((Δs - oldΔs).^2) < ϵ
             break
         end
     end
