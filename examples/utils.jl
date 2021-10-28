@@ -66,7 +66,7 @@ function onesteperror(mechanism, predictions::Storage; stop = length(predictions
         end
     end
     error /= (3*Nbodies*stop)
-    return error
+    isnan(error) ? (return Inf) : (return error)
 end
 
 function checkpoint(experimentid::String, checkpointdict::Dict)
