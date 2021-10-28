@@ -34,7 +34,7 @@ if success && load_checkpoint
     onestep_params = checkpointdict["onestep_params"]
 end
 
-for _ in nprocessed+1:length(params_vec)
+Threads.@threads for _ in nprocessed+1:length(params_vec)
     # Get hyperparameters (threadsafe)
     params = []
     lock(paramlock)
@@ -83,7 +83,7 @@ for _ in nprocessed+1:length(params_vec)
         onestep_mse = onesteperror(mechanism, storage)
         isnan(onestep_mse) ? onestep_mse = Inf : nothing
     catch e
-        display(e)
+        # display(e)
     end
     lock(errorlock)
     try
