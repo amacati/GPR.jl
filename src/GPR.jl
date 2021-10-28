@@ -5,6 +5,7 @@ using LinearAlgebra
 using Statistics
 using Plots
 using Optim
+using ConstrainedDynamics
 using ConstrainedDynamicsVis
 using Rotations
 

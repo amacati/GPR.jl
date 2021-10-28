@@ -20,13 +20,14 @@ function loaddata(storage; coordinates="maximal", mechanism = nothing)
 end
 
 function cleardata!(data; ϵ = 1e-2)
+    N = length(data[1])
     correlatedset = Set{Int}()
     for i in 1:length(data)
         if i in correlatedset
             continue
         end
         for j in i+1:length(data)
-            if sum((data[i]-data[j]).^2) < ϵ
+            if sum((data[i]-data[j]).^2/N) < ϵ
                 push!(correlatedset, j)
             end
         end

@@ -9,7 +9,7 @@ include(joinpath("..", "parallelsearch.jl"))
 
 EXPERIMENT_ID = "P2_2D_MIN_GGK"
 _loadcheckpoint = false
-paramtuples = collect(Iterators.product(0.1:0.5:15.1, 0.1:0.5:15.1, 0.1:0.5:15.1))
+paramtuples = collect(Iterators.product(0.1:2:15.1, 0.1:2:15.1, 0.1:2:15.1, 0.1:2:15.1, 0.1:2:15.1))
 
 storage, mechanism, initialstates = doublependulum2D(noise = true)
 data = loaddata(storage; coordinates="minimal", mechanism = mechanism)

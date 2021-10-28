@@ -9,7 +9,8 @@ include(joinpath("..", "parallelsearch.jl"))
 
 EXPERIMENT_ID = "P1_2D_MIN_GGK"
 _loadcheckpoint = false
-paramtuples = collect(Iterators.product(10.1:0.5:11.1, 10.1:0.5:11.1, 10.1:0.5:11.1))# collect(Iterators.product(0.1:0.5:15.1, 0.1:0.5:15.1, 0.1:0.5:15.1))
+paramtuples = collect(Iterators.product(0.1:0.5:15.1, 0.1:0.5:15.1, 0.1:0.5:15.1))
+# paramtuples = collect(Iterators.product(10.1:0.5:11.1, 10.1:0.5:11.1, 10.1:0.5:11.1))
 
 storage, mechanism, initialstates = simplependulum2D(noise = true)
 data = loaddata(storage; coordinates="minimal", mechanism = mechanism)
@@ -18,11 +19,11 @@ cleardata!(data)
 X = data[1:end-1]
 Yω = [s[2] for s in data[2:end]]
 
-config = ParallelConfig(EXPERIMENT_ID, deepcopy(mechanism), storage, X, [Yω], initialstates, length(storage.x[1]), paramtuples, _loadcheckpoint)
+config = ParallelConfig(EXPERIMENT_ID, mechanism, storage, X, [Yω], paramtuples, _loadcheckpoint)
 
 function experiment(config, params)
-    mechanism = config.mechanism
-    storage = Storage{Float64}(config.experimentlength, length(mechanism.bodies))
+    mechanism = deepcopy(config.mechanism)
+    storage = Storage{Float64}(length(config.storage.x[1]), length(mechanism.bodies))
     for id in 1:length(mechanism.bodies)
         storage.x[id][1] = config.storage.x[id][1]
         storage.q[id][1] = config.storage.q[id][1]
@@ -33,16 +34,17 @@ function experiment(config, params)
     gprω = GaussianProcessRegressor(config.X, config.Y[1], kernel)
     optimize!(gprω)
 
-    for i in 2:config.experimentlength
-        maxstates = getstates(config.storage, i)
-        states = max2mincoordinates([vcat(maxstates...)], mechanism)[1]
-        θ, ω = states
-        ω = GPR.predict(gprω, SVector(θ, ω))[1][1]
-        θ += ω*mechanism.Δt
-        storage.x[1][i] = [0, 0.5sin(θ), -0.5cos(θ)]
-        storage.q[1][i] = UnitQuaternion(RotX(θ))
+    for i in 2:length(config.storage.x[1])-1
+        θold, ωold = max2mincoordinates([vcat(getstates(config.storage, i-1)...)], mechanism)[1]
+        θcurr, _ = max2mincoordinates([vcat(getstates(config.storage, i)...)], mechanism)[1]
+        ωcurr = GPR.predict(gprω, SVector(θold, ωold))[1][1]
+        θnew = θcurr + ωcurr*mechanism.Δt
+        storage.x[1][i+1] = [0, 0.5sin(θnew), -0.5cos(θnew)]
+        storage.q[1][i+1] = UnitQuaternion(RotX(θnew))
     end
     return storage
 end
 
+# storage = experiment(config, [10.1, 10.1, 10.1])
+# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
 parallelsearch(experiment, config)

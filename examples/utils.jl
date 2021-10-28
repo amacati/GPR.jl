@@ -27,7 +27,7 @@ function getstates(mechanism::Mechanism)
     return [state2vector(mechanism.bodies[id].state) for id in 1:Nbodies]
 end
 
-function setstates(mechanism, states)
+function setstates!(mechanism, states)
     @assert length(states) == length(mechanism.bodies) ("State vector size has to be #Nbodies!") 
     for id in 1:length(mechanism.bodies)
         mechanism.bodies[id].state = vector2state(states[id])
@@ -54,7 +54,7 @@ function onesteperror(mechanism, predictions::Storage; stop::Integer = length(pr
     for i in 2:stop
         # set state of each body. also reverts previous changes in mechanism
         initialstates = getstates(predictions, i-1)
-        setstates(mechanism, initialstates)
+        setstates!(mechanism, initialstates)
         # make one step update
         newton!(mechanism)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)

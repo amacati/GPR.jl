@@ -1,6 +1,3 @@
-using LinearAlgebra
-using ConstrainedDynamics
-
 function updateF!(F::AbstractMatrix, mechanism; Gᵥonly = false)
     Gᵥonly ? (_updateFv!(F, mechanism)) : (_updateF!(F, mechanism))
 end
@@ -94,7 +91,7 @@ function g(mechanism)
     return g
 end
 
-function resetMechanism!(mechanism, states)
+function resetMechanism!(mechanism, states::Vector{<:ConstrainedDynamics.State})
     for id in 1:length(mechanism.bodies)
         mechanism.bodies[id].state = deepcopy(states[id])
     end

@@ -6,16 +6,15 @@ mutable struct ParallelConfig
     storage::Storage
     X::Vector
     Y::Vector{Vector}
-    initialstates::Vector
-    experimentlength::Integer
     paramtuples::AbstractArray
     nprocessed::Integer
     onestep_msevec::Vector
     onestep_params::Vector{Vector}
     paramlock::Base.AbstractLock
+    checkpointlock::Base.AbstractLock
     resultlock::Base.AbstractLock
 
-    function ParallelConfig(experimentid, mechanism, storage, X, Y, initialstates, experimentlength, paramtuples, _loadcheckpoint)
+    function ParallelConfig(experimentid, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
         nprocessed = 0
         onestep_msevec = []
         onestep_params = []
@@ -29,8 +28,8 @@ mutable struct ParallelConfig
                 @warn("No previous checkpoints found, search starts at 0.")
             end
         end
-        new(experimentid, mechanism, storage, X, Y, initialstates, experimentlength, paramtuples, nprocessed, onestep_msevec, onestep_params,
-            ReentrantLock(), ReentrantLock())
+        new(experimentid, mechanism, storage, X, Y, paramtuples, nprocessed, onestep_msevec, onestep_params,
+            ReentrantLock(), ReentrantLock(), ReentrantLock())
     end
 end
 
@@ -38,15 +37,16 @@ function parallelsearch(experiment, config)
     tstart = time()    
     Threads.@threads for _ in config.nprocessed+1:length(config.paramtuples)
         # Get hyperparameters (threadsafe)
-        success, params = _getparams(config)  # Threadsafe
+        success, params, jobid = _getparams(config)  # Threadsafe
         !success && continue
-        _checkpoint(config, tstart)
+        _checkpoint(config, tstart, jobid)  # Threadsafe
         # Main experiment
         storage = nothing  # Define in outer scope
         try
             storage = experiment(config, params)
         catch e
             # display(e)
+            throw(e)
         end
         lock(config.resultlock)
         # Writing the results
@@ -72,28 +72,34 @@ function _getparams(config::ParallelConfig)
         @assert config.nprocessed < length(config.paramtuples)
         params = config.paramtuples[config.nprocessed+1]
         config.nprocessed += 1
-        return true, params
+        return true, params, config.nprocessed
     catch e
         display(e)
-        return false, []
+        return false, [], 0
     finally
         unlock(config.paramlock)
     end
 end
 
-function _checkpoint(config, tstart)
-    if config.nprocessed % 10 == 0
-        println("Processing job $(config.nprocessed)/$(length(config.paramtuples))")
+function _checkpoint(config, tstart, jobid)
+    if jobid % 10 == 0
+        println("Processing job $(jobid)/$(length(config.paramtuples))")
         Δt = time() - tstart
-        secs = Int(round(Δt*(length(config.paramtuples)/config.nprocessed-1)))
+        secs = Int(round(Δt*(length(config.paramtuples)/jobid-1)))
         hours = div(secs, 3600)
         minutes = div(secs-hours*3600, 60)
         secs -= (hours*3600 + minutes * 60)
         println("Estimated time to completion: $(hours)h, $(minutes)m, $(secs)s")
-        if config.nprocessed % 100 == 0
-            checkpointdict = Dict("nprocessed" => config.nprocessed, "onestep_msevec" => config.onestep_msevec,
-                                "onestep_params" => config.onestep_params)
-            checkpoint(config.EXPERIMENT_ID, checkpointdict)
+        if jobid % 100 == 0
+            lock(config.checkpointlock)
+            try
+                checkpointdict = Dict("nprocessed" => jobid, "onestep_msevec" => config.onestep_msevec,
+                                    "onestep_params" => config.onestep_params)
+                checkpoint(config.EXPERIMENT_ID, checkpointdict)
+            catch
+            finally
+                unlock(config.checkpointlock)
+            end
         end
     end
 end
