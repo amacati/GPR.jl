@@ -64,7 +64,7 @@ function min2maxcoordinates(data, mechanism)
     return maxdata
 end
 
-function simplependulum2D()
+function simplependulum2D(;noise = false)
     joint_axis = [1.0; 0.0; 0.0]
     Δt=0.01
     g = -9.81
@@ -83,8 +83,9 @@ function simplependulum2D()
     constraints = [joint_between_origin_and_link1]
 
     mech = Mechanism(origin, links, constraints, g=g,Δt=Δt)
-
-    q1 = UnitQuaternion(RotX(π / 2))
+    
+    noise ? ϵ = 0.1 : ϵ = 0
+    q1 = UnitQuaternion(RotX(π / 2  + ϵ))
     setPosition!(origin,link1,p2 = p2,Δq = q1)
     setVelocity!(link1)
 
@@ -93,7 +94,7 @@ function simplependulum2D()
     return storage, mech, initialstates
 end
 
-function doublependulum2D()
+function doublependulum2D(; noise = false)
     # Parameters
     l1 = 1.0
     l2 = sqrt(2) / 2
@@ -105,7 +106,8 @@ function doublependulum2D()
     joint_axis2 = [1.0; 0.0; 0.0]
 
     # Initial orientation
-    phi1 = pi / 4
+    noise ? ϵ = 0.1 : ϵ = 0
+    phi1 = pi / 4 + ϵ
     q1 = UnitQuaternion(RotX(phi1))
 
     # Links
@@ -129,14 +131,15 @@ function doublependulum2D()
     return storage, mech, initialstates
 end
 
-function simplependulum3D()
+function simplependulum3D(; noise = false)
     # Parameters
     l1 = 1.0
     x, y = .1, .1
     vert11 = [0.;0.;l1 / 2]
 
     # Initial orientation
-    phi1 = pi / 4
+    noise ? ϵ = 0.1 : ϵ = 0
+    phi1 = pi / 4 + ϵ
     q1 = UnitQuaternion(RotX(phi1))
 
     # Links
@@ -169,7 +172,8 @@ function doublependulum3D()
     vert21 = [0.;0.;l2 / 2]
 
     # Initial orientation
-    phi1 = pi / 4
+    noise ? ϵ = 0.1 : ϵ = 0
+    phi1 = pi / 4 + ϵ
     q1 = UnitQuaternion(RotX(phi1))
 
     # Links

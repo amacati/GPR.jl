@@ -25,7 +25,7 @@ function optimize!(gpr::GaussianProcessRegressor; verbose::Bool = false)
     return gpr
 end
 
-function optimize!(mogpr::MOGaussianProcessRegressor; verbose::Bool = False, threading::Bool = true)
+function optimize!(mogpr::MOGaussianProcessRegressor; verbose::Bool = false, threading::Bool = true)
     if threading
         Threads.@threads for gpr in mogpr
             optimize!(gpr; verbose=verbose)

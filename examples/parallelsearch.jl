@@ -1,8 +1,9 @@
-using ConstrainedDynamics: Mechanism
+using ConstrainedDynamics: Mechanism, Storage
 
 mutable struct ParallelConfig
     EXPERIMENT_ID::String
     mechanism::Mechanism
+    storage::Storage
     X::Vector
     Y::Vector{Vector}
     initialstates::Vector
@@ -14,7 +15,7 @@ mutable struct ParallelConfig
     paramlock::Base.AbstractLock
     resultlock::Base.AbstractLock
 
-    function ParallelConfig(experimentid, mechanism, X, Y, initialstates, experimentlength, paramtuples, _loadcheckpoint)
+    function ParallelConfig(experimentid, mechanism, storage, X, Y, initialstates, experimentlength, paramtuples, _loadcheckpoint)
         nprocessed = 0
         onestep_msevec = []
         onestep_params = []
@@ -28,7 +29,7 @@ mutable struct ParallelConfig
                 @warn("No previous checkpoints found, search starts at 0.")
             end
         end
-        new(experimentid, mechanism, X, Y, initialstates, experimentlength, paramtuples, nprocessed, onestep_msevec, onestep_params,
+        new(experimentid, mechanism, storage, X, Y, initialstates, experimentlength, paramtuples, nprocessed, onestep_msevec, onestep_params,
             ReentrantLock(), ReentrantLock())
     end
 end
@@ -50,7 +51,7 @@ function parallelsearch(experiment, config)
         lock(config.resultlock)
         # Writing the results
         try
-            storage !== nothing ? onestep_mse = onesteperror(mechanism, storage) : onestep_mse = Inf
+            storage !== nothing ? onestep_mse = onesteperror(config.storage, storage) : onestep_mse = Inf
             push!(config.onestep_msevec, onestep_mse)
             push!(config.onestep_params, [params...])
         catch e
