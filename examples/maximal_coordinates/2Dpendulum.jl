@@ -1,4 +1,5 @@
 using GPR
+using GaussianProcesses
 using ConstrainedDynamicsVis
 using ConstrainedDynamics
 
@@ -9,12 +10,13 @@ include(joinpath("..", "parallelsearch.jl"))
 
 EXPERIMENT_ID = "P1_2D_MAX_GGK"
 _loadcheckpoint = false
-paramtuples = collect(Iterators.product(10.1:0.2:11.1, 10.1:0.2:11.1))
+Λmin, Λmax, ΛN = 0.1, 15.1, 2
+paramtuples = collect(Iterators.product(range(Λmin, stop=Λmax, length=ΛN), range(Λmin, stop=Λmax, length=ΛN)))
 
 storage, mechanism, initialstates = simplependulum2D(noise = true)
 data = loaddata(storage)
 cleardata!(data)
-X = data[1:end-1]
+X = reduce(hcat, data[1:end-1])
 Yv1 = [s[8] for s in data[2:end]]
 Yv2 = [s[9] for s in data[2:end]]
 Yv3 = [s[10] for s in data[2:end]]
@@ -34,22 +36,22 @@ function experiment(config, params)
         storage.v[id][1] = config.storage.v[id][1]
         storage.ω[id][1] = config.storage.ω[id][1]
     end
-    # pkernel = GaussianKernel(0.5, 1.5)
-    # qkernel = QuaternionKernel(0.5, ones(3))
-    # vkernel = GaussianKernel(0.5, 1.5)
-    # kernel = CompositeKernel([pkernel, qkernel, vkernel], [3, 4, 6])
-    kernel = GeneralGaussianKernel(params[1], [params[2:end]...])  # (0.5, ones(13)*0.22)
-    gprs = Vector{GaussianProcessRegressor}()
+    gps = Vector()
     for Yi in config.Y
-        push!(gprs, GaussianProcessRegressor(X, Yi, copy(kernel)))
+        kernel = SEArd(ones(13)*log(params[2]), log(params[1]))
+        gp = GP(config.X, Yi, MeanZero(), kernel)
+        GaussianProcesses.optimize!(gp)
+        push!(gps, gp)
     end
-    mogpr = MOGaussianProcessRegressor(gprs)
-    optimize!(mogpr, verbose=false)
+
+    function predict_velocities(gps, oldstates)
+        return [predict_y(gp, oldstates)[1][1] for gp in gps]
+    end
 
     for i in 2:length(storage.x[1])-1
         oldstates = getstates(config.storage, i-1)
         setstates!(mechanism, oldstates)
-        μ = GPR.predict(mogpr, [SVector(reduce(vcat, oldstates)...)])[1][1]
+        μ = predict_velocities(gps, reshape(reduce(vcat, oldstates), :, 1))
         vcurr, ωcurr = [SVector(μ[1:3]...)], [SVector(μ[4:6]...)]
         projectv!(vcurr, ωcurr, mechanism)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr

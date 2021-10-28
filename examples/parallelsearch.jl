@@ -1,10 +1,11 @@
 using ConstrainedDynamics: Mechanism, Storage
+using Suppressor
 
 mutable struct ParallelConfig
     EXPERIMENT_ID::String
     mechanism::Mechanism
     storage::Storage
-    X::Vector
+    X::Matrix
     Y::Vector{Vector}
     paramtuples::AbstractArray
     nprocessed::Integer
@@ -34,7 +35,7 @@ mutable struct ParallelConfig
 end
 
 function parallelsearch(experiment, config)
-    tstart = time()    
+    tstart = time()
     Threads.@threads for _ in config.nprocessed+1:length(config.paramtuples)
         # Get hyperparameters (threadsafe)
         success, params, jobid = _getparams(config)  # Threadsafe
@@ -43,10 +44,10 @@ function parallelsearch(experiment, config)
         # Main experiment
         storage = nothing  # Define in outer scope
         try
-            storage = experiment(config, params)
+            @suppress storage = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
         catch e
-            # display(e)
-            throw(e)
+            display(e)
+            # throw(e)
         end
         lock(config.resultlock)
         # Writing the results
@@ -74,7 +75,7 @@ function _getparams(config::ParallelConfig)
         config.nprocessed += 1
         return true, params, config.nprocessed
     catch e
-        display(e)
+        # display(e)
         return false, [], 0
     finally
         unlock(config.paramlock)

@@ -1,4 +1,6 @@
+using GaussianProcesses
 using GPR
+using Optim
 using ConstrainedDynamicsVis
 using ConstrainedDynamics
 
@@ -9,13 +11,13 @@ include(joinpath("..", "parallelsearch.jl"))
 
 EXPERIMENT_ID = "P2_2D_MAX_GGK"
 _loadcheckpoint = false
-paramtuples = collect(Iterators.product(0.1:0.5:15.1, 0.1:0.5:15.1, 0.1:0.5:15.1))
+Λmin, Λmax, ΛN = 0.1, 15.1, 2
+paramtuples = collect(Iterators.product(range(Λmin, stop=Λmax, length=ΛN), range(Λmin, stop=Λmax, length=ΛN)))
 
 storage, mechanism, initialstates = doublependulum2D(noise = true)
 data = loaddata(storage)
 cleardata!(data)
-
-X = data[1:end-1]
+X = reduce(hcat, data[1:end-1])
 Yv11 = [s[8] for s in data[2:end]]
 Yv12 = [s[9] for s in data[2:end]]
 Yv13 = [s[10] for s in data[2:end]]
@@ -32,12 +34,6 @@ Y = [Yv11, Yv12, Yv13, Yv21, Yv22, Yv23, Yω11, Yω12, Yω13, Yω21, Yω22, Yω2
 
 config = ParallelConfig(EXPERIMENT_ID, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
 
-#pkernel = GeneralGaussianKernel(15, ones(3)*0.001)
-#qkernel = QuaternionKernel(15, ones(3)*0.001)
-#vkernel = GeneralGaussianKernel(15, ones(6)*0.001)
-# GGK(10, 0.001), QK(10, 0.001), GGK(10, 0.001) *2 works as well
-#kernel = CompositeKernel([copy(pkernel), copy(qkernel), copy(vkernel), copy(pkernel), copy(qkernel), copy(vkernel)], [3, 4, 6, 3, 4, 6])
-
 function experiment(config, params)
     mechanism = deepcopy(config.mechanism)
     storage = Storage{Float64}(length(config.storage.x[1]), length(mechanism.bodies))
@@ -47,18 +43,22 @@ function experiment(config, params)
         storage.v[id][1] = config.storage.v[id][1]
         storage.ω[id][1] = config.storage.ω[id][1]
     end
-    kernel = GeneralGaussianKernel(params[1], [params[2:end]...])  # 500., 0.001 works okayish
-    gprs = Vector{GaussianProcessRegressor}()
+    gps = Vector()
     for Yi in config.Y
-        push!(gprs, GaussianProcessRegressor(X, Yi, copy(kernel)))
+        kernel = SEArd(ones(26)*log(params[2]), log(params[1]))
+        gp = GP(config.X, Yi, MeanZero(), kernel)
+        GaussianProcesses.optimize!(gp, Optim.Options(time_limit=10.))
+        push!(gps, gp)
     end
-    mogpr = MOGaussianProcessRegressor(gprs)
-    # optimize!(mogpr, verbose=false)
+    
+    function predict_velocities(gps, oldstates)
+        return [predict_y(gp, oldstates)[1][1] for gp in gps]
+    end
 
     for i in 2:length(storage.x[1])-1
         oldstates = getstates(config.storage, i-1)
         setstates!(mechanism, oldstates)
-        μ = GPR.predict(mogpr, [SVector(reduce(vcat, oldstates)...)])[1][1]
+        μ = predict_velocities(gps, reshape(reduce(vcat, oldstates), :, 1))
         vcurr, ωcurr = [SVector(μ[1:3]...), SVector(μ[4:6]...)], [SVector(μ[7:9]...), SVector(μ[10:12]...)]
         projectv!(vcurr, ωcurr, mechanism)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
@@ -78,18 +78,23 @@ function simulation(config, params)
         storage.v[id][1] = config.storage.v[id][1]
         storage.ω[id][1] = config.storage.ω[id][1]
     end
-    kernel = GeneralGaussianKernel(params[1], [params[2:end]...])  # 500., 0.001 works okayish
-    gprs = Vector{GaussianProcessRegressor}()
+
+    gps = Vector()
     for Yi in config.Y
-        push!(gprs, GaussianProcessRegressor(X, Yi, copy(kernel)))
+        kernel = SEArd(ones(26)*log(params[2]), log(params[1]))
+        gp = GP(config.X, Yi, MeanZero(), kernel)
+        GaussianProcesses.optimize!(gp)
+        push!(gps, gp)
     end
-    mogpr = MOGaussianProcessRegressor(gprs)
-    optimize!(mogpr, verbose=false)
+    
+    function predict_velocities(gps, states)
+        return [predict_y(gp, states)[1][1] for gp in gps]
+    end
 
     states = getstates(config.storage, 1)
     setstates!(mechanism, states)
     for i in 2:length(storage.x[1])
-        μ = GPR.predict(mogpr, [SVector(reduce(vcat, states)...)])[1][1]
+        μ = predict_velocities(gps, reshape(reduce(vcat, states), :, 1))
         vcurr, ωcurr = [SVector(μ[1:3]...), SVector(μ[4:6]...)], [SVector(μ[7:9]...), SVector(μ[10:12]...)]
         projectv!(vcurr, ωcurr, mechanism)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
@@ -99,5 +104,6 @@ function simulation(config, params)
     return storage
 end
 
-storage = simulation(config, [500., ones(26)...])
-ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+# storage = simulation(config, [log.(10), log.(ones(26).*2)...])
+# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+parallelsearch(experiment, config)
