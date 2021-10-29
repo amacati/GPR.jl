@@ -125,7 +125,7 @@ function doublependulum2D(; noise = false)
     mech = Mechanism(origin, links, constraints)
 
     setPosition!(origin,link1,p2 = vert11,Δq = q1)
-    setPosition!(link1,link2,p1 = vert12,p2 = vert21,Δq = inv(q1)*UnitQuaternion(RotY(0.2)))
+    setPosition!(link1,link2,p1 = vert12,p2 = vert21,Δq = inv(q1)*UnitQuaternion(RotX(0.2)))
 
     initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech, 10., record = true)

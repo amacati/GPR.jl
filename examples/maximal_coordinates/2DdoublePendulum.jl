@@ -3,6 +3,8 @@ using GPR
 using Optim
 using ConstrainedDynamicsVis
 using ConstrainedDynamics
+using LineSearches
+using Statistics
 
 include(joinpath("..", "generatedata.jl"))
 include(joinpath("..", "utils.jl"))
@@ -11,12 +13,10 @@ include(joinpath("..", "parallelsearch.jl"))
 
 EXPERIMENT_ID = "P2_2D_MAX_GGK"
 _loadcheckpoint = false
-Λmin, Λmax, ΛN = 0.1, 15.1, 2
-paramtuples = collect(Iterators.product(range(Λmin, stop=Λmax, length=ΛN), range(Λmin, stop=Λmax, length=ΛN)))
 
 storage, mechanism, initialstates = doublependulum2D(noise = true)
 data = loaddata(storage)
-cleardata!(data)
+cleardata!(data, ϵ = 2e-3)
 X = reduce(hcat, data[1:end-1])
 Yv11 = [s[8] for s in data[2:end]]
 Yv12 = [s[9] for s in data[2:end]]
@@ -32,6 +32,10 @@ Yω22 = [s[25] for s in data[2:end]]
 Yω23 = [s[26] for s in data[2:end]]
 Y = [Yv11, Yv12, Yv13, Yv21, Yv22, Yv23, Yω11, Yω12, Yω13, Yω21, Yω22, Yω23]
 
+stdx = std(X, dims=2)
+stdx[stdx .== 0] .= 100
+params = [1.1, (1 ./(0.02 .*stdx))...]
+paramtuples = [params]
 config = ParallelConfig(EXPERIMENT_ID, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
 
 function experiment(config, params)
@@ -45,9 +49,9 @@ function experiment(config, params)
     end
     gps = Vector()
     for Yi in config.Y
-        kernel = SEArd(ones(26)*log(params[2]), log(params[1]))
+        kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(config.X, Yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp, Optim.Options(time_limit=10.))
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
     
@@ -81,12 +85,12 @@ function simulation(config, params)
 
     gps = Vector()
     for Yi in config.Y
-        kernel = SEArd(ones(26)*log(params[2]), log(params[1]))
+        kernel = SEArd(log.(params[2:end]), log(params[1]))  # ones(26).*
         gp = GP(config.X, Yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp)
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
-    
+
     function predict_velocities(gps, states)
         return [predict_y(gp, states)[1][1] for gp in gps]
     end
@@ -104,6 +108,6 @@ function simulation(config, params)
     return storage
 end
 
-# storage = simulation(config, [log.(10), log.(ones(26).*2)...])
-# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
-parallelsearch(experiment, config)
+storage = simulation(config, params)
+ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+# parallelsearch(experiment, config)

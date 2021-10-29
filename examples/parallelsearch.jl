@@ -44,7 +44,7 @@ function parallelsearch(experiment, config)
         # Main experiment
         storage = nothing  # Define in outer scope
         try
-            @suppress storage = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
+            storage = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
             # throw(e)

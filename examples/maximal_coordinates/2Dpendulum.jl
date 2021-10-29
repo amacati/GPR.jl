@@ -1,7 +1,10 @@
-using GPR
 using GaussianProcesses
+using GPR
+using Optim
 using ConstrainedDynamicsVis
 using ConstrainedDynamics
+using LineSearches
+using Statistics
 
 include(joinpath("..", "generatedata.jl"))
 include(joinpath("..", "utils.jl"))
@@ -10,10 +13,8 @@ include(joinpath("..", "parallelsearch.jl"))
 
 EXPERIMENT_ID = "P1_2D_MAX_GGK"
 _loadcheckpoint = false
-Λmin, Λmax, ΛN = 0.1, 15.1, 2
-paramtuples = collect(Iterators.product(range(Λmin, stop=Λmax, length=ΛN), range(Λmin, stop=Λmax, length=ΛN)))
 
-storage, mechanism, initialstates = simplependulum2D(noise = true)
+storage, mechanism, initialstates = simplependulum2D()
 data = loaddata(storage)
 cleardata!(data)
 X = reduce(hcat, data[1:end-1])
@@ -25,6 +26,11 @@ Yω2 = [s[12] for s in data[2:end]]
 Yω3 = [s[13] for s in data[2:end]]
 Y = [Yv1, Yv2, Yv3, Yω1, Yω2, Yω3]
 
+stdx = std(X, dims=2)
+stdx[stdx .== 0] .= 100
+params = [1.1, (1 ./(0.02 .*stdx))...]
+params = [0.1, ones(13).*10...]
+paramtuples = [params]
 config = ParallelConfig(EXPERIMENT_ID, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
 
 function experiment(config, params)
@@ -40,7 +46,7 @@ function experiment(config, params)
     for Yi in config.Y
         kernel = SEArd(ones(13)*log(params[2]), log(params[1]))
         gp = GP(config.X, Yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp)
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
 
@@ -62,6 +68,43 @@ function experiment(config, params)
     return storage
 end
 
-# storage = experiment(config, [10.5, ones(13)*10...])
-# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
-parallelsearch(experiment, config)
+function simulation(config, params)
+    mechanism = deepcopy(config.mechanism)
+    storage = Storage{Float64}(length(config.storage.x[1]), length(mechanism.bodies))
+    for id in 1:length(mechanism.bodies)
+        storage.x[id][1] = config.storage.x[id][1]
+        storage.q[id][1] = config.storage.q[id][1]
+        storage.v[id][1] = config.storage.v[id][1]
+        storage.ω[id][1] = config.storage.ω[id][1]
+    end
+
+    gps = Vector()
+    for Yi in config.Y
+        kernel = SEArd(log.(params[2:end]), log(params[1]))
+        gp = GP(config.X, Yi, MeanZero(), kernel)
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
+        push!(gps, gp)
+    end
+    
+
+    function predict_velocities(gps, states)
+        return [predict_y(gp, states)[1][1] for gp in gps]
+    end
+
+    states = getstates(config.storage, 1)
+    setstates!(mechanism, states)
+    for i in 2:length(storage.x[1])
+        μ = predict_velocities(gps, reshape(reduce(vcat, states), :, 1))
+        vcurr, ωcurr = [SVector(μ[1:3]...)], [SVector(μ[4:6]...)]
+        projectv!(vcurr, ωcurr, mechanism)
+        foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
+        states = getstates(mechanism)
+        overwritestorage(storage, states, i)
+    end
+    return storage
+end
+
+storage = simulation(config, params)
+display(storage.x[1][3])
+ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+# parallelsearch(experiment, config)
