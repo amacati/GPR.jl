@@ -65,9 +65,8 @@ function min2maxcoordinates(data, mechanism)
     return maxdata
 end
 
-function simplependulum2D(;noise = false)
+function simplependulum2D(;Δt = 0.01, ω0 = SA[0;0;0], noise = false)
     joint_axis = [1.0; 0.0; 0.0]
-    Δt=0.01
     g = -9.81
     m = 1.0
     l = 1.0
@@ -88,14 +87,14 @@ function simplependulum2D(;noise = false)
     noise ? ϵ = 0.1 : ϵ = 0
     q1 = UnitQuaternion(RotX(π / 2  + ϵ))
     setPosition!(origin,link1,p2 = p2,Δq = q1)
-    setVelocity!(link1)
+    setVelocity!(origin, link1; p2=p2, ω0)
 
     initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech,10.,record = true)
     return storage, mech, initialstates
 end
 
-function doublependulum2D(; noise = false)
+function doublependulum2D(;Δt = 0.01, ω0 = [SA[0;0;0], SA[0;0;0]], noise = false)
     # Parameters
     l1 = 1.0
     l2 = sqrt(2) / 2
@@ -122,13 +121,51 @@ function doublependulum2D(; noise = false)
     links = [link1;link2]
     constraints = [socket0to1;socket1to2]
 
-    mech = Mechanism(origin, links, constraints)
+    mech = Mechanism(origin, links, constraints, Δt=Δt)
 
-    setPosition!(origin,link1,p2 = vert11,Δq = q1)
-    setPosition!(link1,link2,p1 = vert12,p2 = vert21,Δq = inv(q1)*UnitQuaternion(RotX(0.2)))
+    setPosition!(origin,link1, p2=vert11, Δq=q1)
+    setPosition!(link1, link2, p1=vert12, p2=vert21, Δq=inv(q1)*UnitQuaternion(RotX(0.2)))
+    setVelocity!(origin, link1; p2=vert11, Δω=ω0[1])
+    setVelocity!(link1, link2; p1=vert12, p2=vert21, Δω=ω0[2])
 
     initialstates = [deepcopy(body.state) for body in mech.bodies]
     storage = simulate!(mech, 10., record = true)
+    return storage, mech, initialstates
+end
+
+function cartpole(;Δt = 0.01, x0=SA[0;0;0], q0=one(UnitQuaternion), v0 = SA[0;0;0], ω0 = SA[0;0;0])
+    xaxis = [1.0; 0.0; 0.0]
+    yaxis = [0.0; 1.0; 0.0]
+    g = -9.81
+    m1 = 1.0
+    m2 = 1.0
+    l = 0.5
+    r = 0.01
+    p01 = [0.0; 0.0; 0.0] # joint connection point
+    p12 = [0.0; 0.0; 0.0]
+    p21 = [0.0; 0.0; l/2]
+
+    # Links
+    x, y, z = 0.2, 0.3, 0.1
+    origin = Origin{Float64}()
+    link1 = Box(x, y, z, m1)
+    link2 = Cylinder(r, l, m2)
+
+    # Constraints
+    joint_origin_link1 = EqualityConstraint(Prismatic(origin, link1, yaxis; p2=p01))
+    joint_link1_link2 = EqualityConstraint(Revolute(link1, link2, xaxis; p1=p12, p2=p21))
+    links = [link1, link2]
+    constraints = [joint_origin_link1, joint_link1_link2]
+
+    mech = Mechanism(origin, links, constraints, g=g, Δt=Δt)
+    
+    setPosition!(origin, link1; p2=p01, Δx=x0)
+    setPosition!(link1, link2; p1=p12, p2=p21, Δq=q0)
+    setVelocity!(origin, link1; p2=p01, Δv=v0)
+    setVelocity!(link1, link2; p1=p12, p2=p21, Δω=ω0)
+
+    initialstates = [deepcopy(body.state) for body in mech.bodies]
+    storage = simulate!(mech,10.,record = true)
     return storage, mech, initialstates
 end
 

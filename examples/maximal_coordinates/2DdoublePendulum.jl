@@ -14,8 +14,9 @@ include(joinpath("..", "parallelsearch.jl"))
 EXPERIMENT_ID = "P2_2D_MAX_GGK"
 _loadcheckpoint = false
 
-storage, mechanism, initialstates = doublependulum2D(noise = true)
-data = loaddata(storage)
+storage, mechanism, initialstates = doublependulum2D(Δt=0.001)
+data = loaddata(storage)[1:10:end]
+
 cleardata!(data, ϵ = 2e-3)
 X = reduce(hcat, data[1:end-1])
 Yv11 = [s[8] for s in data[2:end]]
@@ -35,7 +36,7 @@ Y = [Yv11, Yv12, Yv13, Yv21, Yv22, Yv23, Yω11, Yω12, Yω13, Yω21, Yω22, Yω2
 stdx = std(X, dims=2)
 stdx[stdx .== 0] .= 100
 params = [1.1, (1 ./(0.02 .*stdx))...]
-display(params)
+
 paramtuples = [params]
 config = ParallelConfig(EXPERIMENT_ID, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
 
@@ -109,6 +110,6 @@ function simulation(config, params)
     return storage
 end
 
-storage = simulation(config, params)
-ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+# storage = simulation(config, params)
+# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
 # parallelsearch(experiment, config)
