@@ -6,19 +6,19 @@ using ConstrainedDynamics
 using LineSearches
 using Statistics
 
-include(joinpath("..", "generatedata.jl"))
-include(joinpath("..", "utils.jl"))
-include(joinpath("..", "parallelsearch.jl"))
+include(joinpath("generatedata.jl"))
+include(joinpath("utils.jl"))
+include(joinpath("parallelsearch.jl"))
 
 
-EXPERIMENT_ID = "P1_2D_MIN_GGK"
+EXPERIMENT_ID = "P1_2D_PREV_VE"
 _loadcheckpoint = false
 
 storage, mechanism, initialstates = simplependulum2D()
 data = loaddata(storage; coordinates="minimal", mechanism = mechanism)
 data = [SVector(s[1], s[2]) for s in data]
 cleardata!(data, ϵ=1e-4)
-display(length(data))
+
 X = reduce(hcat, data[1:end-1])
 Yω = [s[2] for s in data[2:end]]
 
@@ -39,14 +39,11 @@ function experiment(config, params)
         storage.v[id][1] = config.storage.v[id][1]
         storage.ω[id][1] = config.storage.ω[id][1]
     end
-    kernel = SEArd(log.(params[2:end]), log(params[1]))
-    gp = GP(config.X, config.Y[1], MeanZero(), kernel)
-    GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
 
     for i in 2:length(config.storage.x[1])-1
-        θold, ωold = max2mincoordinates([vcat(getstates(config.storage, i-1)...)], mechanism)[1]
+        _, ωold = max2mincoordinates([vcat(getstates(config.storage, i-1)...)], mechanism)[1]
         θcurr, _ = max2mincoordinates([vcat(getstates(config.storage, i)...)], mechanism)[1]
-        ωcurr = predict_y(gp, reshape([θold, ωold], :, 1))[1][1]
+        ωcurr = ωold
         θnew = θcurr + ωcurr*mechanism.Δt
         storage.x[1][i+1] = [0, 0.5sin(θnew), -0.5cos(θnew)]
         storage.q[1][i+1] = UnitQuaternion(RotX(θnew))
@@ -63,15 +60,11 @@ function simulation(config, params)
         storage.v[id][1] = config.storage.v[id][1]
         storage.ω[id][1] = config.storage.ω[id][1]
     end
-    kernel = SEArd(log.(params[2:end]), log(params[1]))
-    gp = GP(config.X, config.Y[1], MeanZero(), kernel)
-    GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
 
-    θold, ωold = max2mincoordinates([vcat(getstates(config.storage, 1)...)], mechanism)[1]
+    _, ωold = max2mincoordinates([vcat(getstates(config.storage, 1)...)], mechanism)[1]
     θcurr, _ = max2mincoordinates([vcat(getstates(config.storage, 2)...)], mechanism)[1]
     for i in 2:length(config.storage.x[1])-1
-        ωcurr = predict_y(gp, reshape([θold, ωold], :, 1))[1][1]
-        θold, ωold = θcurr, ωcurr
+        ωcurr = ωold
         θnew = θcurr + ωcurr*mechanism.Δt  # ω*Δt
         storage.x[1][i+1] = [0, 0.5sin(θnew), -0.5cos(θnew)]
         storage.q[1][i+1] = UnitQuaternion(RotX(θnew))
@@ -80,6 +73,11 @@ function simulation(config, params)
     return storage
 end
 
-# storage = simulation(config, [10.1, 10.1, 10.1])
-# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
-parallelsearch(experiment, config)
+showSim = true
+if showSim
+    prediction_storage = simulation(config, [10.1, 10.1, 10.1])
+    println("Simulation error: $(simulationerror(storage, prediction_storage))")
+    ConstrainedDynamicsVis.visualize(mechanism, prediction_storage; showframes = true, env = "editor")
+else
+    parallelsearch(experiment, config)
+end

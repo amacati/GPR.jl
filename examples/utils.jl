@@ -46,30 +46,7 @@ function overwritestorage(storage::Storage, states, i)
     end
 end
 
-function onesteperror(mechanism, predictions::Storage; stop::Integer = length(predictions.x[1])-1)
-    @assert stop < length(predictions.x[1])
-    tmpstorage = Storage{Float64}(1000, length(mechanism.bodies))
-    Nbodies = length(mechanism.bodies)
-    error = 0
-    for i in 2:stop
-        # set state of each body. also reverts previous changes in mechanism
-        initialstates = getstates(predictions, i-1)
-        setstates!(mechanism, initialstates)
-        # make one step update
-        newton!(mechanism)
-        foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)
-        # get vector, compute error
-        xtrue = [mechanism.bodies[id].state.xsol[2] for id in 1:Nbodies]  # for t+1
-        xpred = [state[1:3] for state in getstates(predictions, i+1)]  # for t+1
-        for id in 1:Nbodies
-            error += sum((xtrue[id] .- xpred[id]).^2)
-        end
-    end
-    error /= (3*Nbodies*stop)
-    isnan(error) ? (return Inf) : (return error)
-end
-
-function onesteperror(groundtruth::Storage, predictions::Storage; stop::Integer = length(predictions.x[1]))
+function simulationerror(groundtruth::Storage, predictions::Storage; stop::Integer = length(predictions.x[1]))
     @assert 1 < stop <= length(predictions.x[1])
     @assert length(groundtruth.x[1]) >= length(predictions.x[1])
     Nbodies = length(mechanism.bodies)
@@ -85,7 +62,6 @@ function onesteperror(groundtruth::Storage, predictions::Storage; stop::Integer 
     error /= (3*Nbodies*(stop-1))
     isnan(error) ? (return Inf) : (return error)
 end
-
 
 function checkpoint(experimentid::String, checkpointdict::Dict)
     open(experimentid*"_checkpoint.json","w") do f

@@ -35,6 +35,7 @@ Y = [Yv11, Yv12, Yv13, Yv21, Yv22, Yv23, Yω11, Yω12, Yω13, Yω21, Yω22, Yω2
 stdx = std(X, dims=2)
 stdx[stdx .== 0] .= 100
 params = [1.1, (1 ./(0.02 .*stdx))...]
+display(params)
 paramtuples = [params]
 config = ParallelConfig(EXPERIMENT_ID, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
 
@@ -87,7 +88,7 @@ function simulation(config, params)
     for Yi in config.Y
         kernel = SEArd(log.(params[2:end]), log(params[1]))  # ones(26).*
         gp = GP(config.X, Yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
+        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
 

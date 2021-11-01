@@ -52,7 +52,7 @@ function parallelsearch(experiment, config)
         lock(config.resultlock)
         # Writing the results
         try
-            storage !== nothing ? onestep_mse = onesteperror(config.storage, storage) : onestep_mse = Inf
+            storage !== nothing ? onestep_mse = simulationerror(config.storage, storage) : onestep_mse = Inf
             push!(config.onestep_msevec, onestep_mse)
             push!(config.onestep_params, [params...])
         catch e

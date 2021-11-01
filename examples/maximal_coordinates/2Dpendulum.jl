@@ -16,7 +16,8 @@ _loadcheckpoint = false
 
 storage, mechanism, initialstates = simplependulum2D()
 data = loaddata(storage)
-cleardata!(data)
+cleardata!(data, ϵ = 1e-4)
+
 X = reduce(hcat, data[1:end-1])
 Yv1 = [s[8] for s in data[2:end]]
 Yv2 = [s[9] for s in data[2:end]]
@@ -27,9 +28,9 @@ Yω3 = [s[13] for s in data[2:end]]
 Y = [Yv1, Yv2, Yv3, Yω1, Yω2, Yω3]
 
 stdx = std(X, dims=2)
-stdx[stdx .== 0] .= 100
-params = [1.1, (1 ./(0.02 .*stdx))...]
-params = [0.1, ones(13).*10...]
+stdx[stdx .== 0] .= 1000
+params = [100., (10 ./(stdx))...]
+display(params)
 paramtuples = [params]
 config = ParallelConfig(EXPERIMENT_ID, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
 
@@ -44,7 +45,7 @@ function experiment(config, params)
     end
     gps = Vector()
     for Yi in config.Y
-        kernel = SEArd(ones(13)*log(params[2]), log(params[1]))
+        kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(config.X, Yi, MeanZero(), kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
         push!(gps, gp)
@@ -62,8 +63,7 @@ function experiment(config, params)
         projectv!(vcurr, ωcurr, mechanism)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
-        states = getstates(mechanism)  # Extract xnew
-        overwritestorage(storage, states, i+1)
+        overwritestorage(storage, getstates(mechanism), i+1)  # Write xnew to storage
     end
     return storage
 end
@@ -82,7 +82,7 @@ function simulation(config, params)
     for Yi in config.Y
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(config.X, Yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
+        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
     
@@ -105,6 +105,5 @@ function simulation(config, params)
 end
 
 storage = simulation(config, params)
-display(storage.x[1][3])
 ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
-# parallelsearch(experiment, config)
+# arallelsearch(experiment, config)
