@@ -2,23 +2,43 @@ using Rotations
 using JSON
 using ConstrainedDynamics: Storage, updatestate!, State, Mechanism, newton!, foreachactive, setsolution!, discretizestate!
 
-function vector2state(vstate)
-    @assert length(vstate) == 13 ("State size has to be 13")
+function tostate(cstate::Vector{Float64})
+    @assert length(cstate) == 13 ("State size has to be exactly 13")
     state = State{Float64}()
-    state.xc = SVector(vstate[1:3]...)
-    state.qc = UnitQuaternion(vstate[4], vstate[5:7])
-    state.vc = SVector(vstate[8:10]...)
-    state.ωc = SVector(vstate[11:13]...)
+    state.xc = SVector(cstate[1:3]...)
+    state.qc = UnitQuaternion(cstate[4], cstate[5:7])
+    state.vc = SVector(cstate[8:10]...)
+    state.ωc = SVector(cstate[11:13]...)
     return state
 end
 
-function state2vector(state::State)
+function tostates(cstates::Vector{Float64})
+    @assert length(cstates) % 13 == 0 ("State size has to be multiple of 13")
+    nstates = div(length(cstates), 13)
+    states = Vector{State}(undef, nstates)
+    for i in 1:nstates
+        offset = (i-1)*13
+        state = State{Float64}()
+        state.xc = SVector(cstates[1+offset:3+offset]...)
+        state.qc = UnitQuaternion(cstates[4+offset], cstates[5+offset:7+offset])
+        state.vc = SVector(cstates[8+offset:10+offset]...)
+        state.ωc = SVector(cstates[11+offset:13+offset]...)
+        states[i] = state
+    end
+    return states
+end
+
+function tostates(vstates::Vector{Vector{Float64}})
+    return [tostates(cstate)[1] for cstate in vstates]
+end
+
+function tocstate(state::State)
     return [state.xc..., state.qc.w, state.qc.x, state.qc.y, state.qc.z, state.vc..., state.ωc...]
 end
 
-function cstate2state(cstate::Vector{Float64})
-    @assert length(cstate) % 13 == 0
-    return [cstate[1+offset:13+offset] for offset in 0:13:length(cstate)-1]
+function tovstate(cstates::Vector{Float64})
+    @assert length(cstates) % 13 == 0 ("State size has to be multiple of 13")
+    return [cstates[i:i+12] for i in 1:13:length(cstates)]
 end
 
 function getstates(storage::Storage, i)
@@ -29,13 +49,14 @@ end
 
 function getstates(mechanism::Mechanism)
     Nbodies = length(mechanism.bodies)
-    return [state2vector(mechanism.bodies[id].state) for id in 1:Nbodies]
+    return [tocstate(mechanism.bodies[id].state) for id in 1:Nbodies]
 end
 
-function setstates!(mechanism, states)
-    @assert length(states) == length(mechanism.bodies) ("State vector size has to be #Nbodies!") 
+function setstates!(mechanism, vstates)
+    @assert length(vstates) == length(mechanism.bodies) ("State vector size has to be #Nbodies!") 
+    states = tostates(vstates)
     for id in 1:length(mechanism.bodies)
-        mechanism.bodies[id].state = vector2state(states[id])
+        mechanism.bodies[id].state = states[id]
     end
     discretizestate!(mechanism)
     foreach(setsolution!, mechanism.bodies)
@@ -75,8 +96,8 @@ function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Ve
     error = 0
     for i in 1:stop
         # get vector, compute error
-        xtrue = [state[1:3] for state in cstate2state(groundtruth[i])]  # for t+1
-        xpred = [state[1:3] for state in cstate2state(predictions[i])]  # for t+1
+        xtrue = [state[1:3] for state in tovstate(groundtruth[i])]  # for t+1
+        xpred = [state[1:3] for state in tovstate(predictions[i])]  # for t+1
         for id in 1:Nbodies
             error += sum((xtrue[id] .- xpred[id]).^2)
         end

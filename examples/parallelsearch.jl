@@ -7,6 +7,7 @@ mutable struct ParallelConfig
     x_train::Matrix
     y_train::Vector{Vector{Float64}}
     x_test::Vector{Vector{Float64}}
+    xnext_test::Vector{Vector{Float64}}
     xresult_test::Vector{Vector{Float64}}
     paramtuples::AbstractArray
     nprocessed::Integer
@@ -17,7 +18,8 @@ mutable struct ParallelConfig
     resultlock::Base.AbstractLock
 
     function ParallelConfig(experimentid::String, mechanism::Mechanism, x_train::Matrix, y_train::Vector{<:Vector},
-                            x_test::Vector{<:Vector}, xresult_test::Vector{<:Vector}, paramtuples, _loadcheckpoint::Bool)
+                            x_test::Vector{<:Vector}, xresult_test::Vector{<:Vector}, paramtuples, _loadcheckpoint::Bool
+                            ;xnext_test::Vector{<:Vector} = [[]])
         nprocessed = 0
         onestep_msevec = []
         onestep_params = []
@@ -31,7 +33,7 @@ mutable struct ParallelConfig
                 @warn("No previous checkpoints found, search starts at 0.")
             end
         end
-        new(experimentid, mechanism, x_train, y_train, x_test, xresult_test, paramtuples, nprocessed,
+        new(experimentid, mechanism, x_train, y_train, x_test, xnext_test, xresult_test, paramtuples, nprocessed,
             onestep_msevec, onestep_params, ReentrantLock(), ReentrantLock(), ReentrantLock())
     end
 end
@@ -49,7 +51,7 @@ function parallelsearch(experiment, config)
             predictedstates = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         end
         lock(config.resultlock)
         # Writing the results
@@ -59,7 +61,7 @@ function parallelsearch(experiment, config)
             push!(config.onestep_params, [params...])
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         finally
             unlock(config.resultlock)
         end

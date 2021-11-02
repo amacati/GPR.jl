@@ -16,11 +16,11 @@ EXPERIMENT_ID = "P2_MAX"
 _loadcheckpoint = false
 Δtsim = 0.001
 testsets = [3, 7, 9, 20]
-ntrials = 1
+ntrials = 1000
 
 dataset = Dataset()
 for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
-    storage, mechanism, initialstates = doublependulum2D(Δt=Δtsim, θstart=[θ1, θ2])
+    storage, _, _ = doublependulum2D(Δt=Δtsim, θstart=[θ1, θ2])
     dataset += storage
 end
 x_train, xnext_train, _ = sampledataset(dataset, 2500, Δt = Δtsim, exclude = testsets)
@@ -47,9 +47,8 @@ params = [1.1, (1 ./(0.02 .*stdx))...]
 x_test, _, xresult_test = sampledataset(dataset, 1000, Δt = Δtsim, exclude = [i for i in 1:length(dataset.storages) if !(i in testsets)])
 
 mechanism = doublependulum2D(Δt=0.01, θstart=[0, 0])[2]  # Reset Δt to 0.01 in mechanism
-paramtuples = [params .+ (rand(length(params)) .- 0.25) .* 4 .* params for _ in 1:ntrials]
+paramtuples = [params .+ (4rand(length(params)) .- 1.) .* params for _ in 1:ntrials]
 push!(paramtuples, params)  # Make sure initial params are also included
-
 config = ParallelConfig(EXPERIMENT_ID, mechanism, x_train, y_train, x_test, xresult_test, paramtuples, _loadcheckpoint)
 
 function experiment(config, params)
@@ -67,8 +66,8 @@ function experiment(config, params)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    for i in 1:length(x_test)
-        oldstates = cstate2state(x_test[i])
+    for i in 1:length(config.x_test)
+        oldstates = tovstate(config.x_test[i])
         setstates!(mechanism, oldstates)
         μ = predict_velocities(gps, reshape(reduce(vcat, oldstates), :, 1))
         vcurr, ωcurr = [SVector(μ[1:3]...), SVector(μ[4:6]...)], [SVector(μ[7:9]...), SVector(μ[10:12]...)]
@@ -83,7 +82,7 @@ end
 function simulation(config, params)
     mechanism = deepcopy(config.mechanism)
     storage = Storage{Float64}(300, length(mechanism.bodies))
-    initialstates = cstate2state(config.x_test[1])
+    initialstates = tovstate(config.x_test[1])
     for id in 1:length(mechanism.bodies)
         storage.x[id][1] = initialstates[id][1:3]
         storage.q[id][1] = UnitQuaternion(initialstates[id][4], initialstates[id][5:7])
@@ -103,7 +102,7 @@ function simulation(config, params)
         return [predict_y(gp, states)[1][1] for gp in gps]
     end
 
-    states = cstate2state(x_test[1])
+    states = tovstate(config.x_test[1])
     setstates!(mechanism, states)
     for i in 2:length(storage.x[1])
         μ = predict_velocities(gps, reshape(reduce(vcat, states), :, 1))
@@ -117,6 +116,6 @@ function simulation(config, params)
 end
 
 # storage = simulation(config, params)
-# storage, mechanism, initialstates = doublependulum2D(Δt=Δtsim, θstart=[-π/3, collect(-π/3:0.5:π/3)[3]])
+# storage, mechanism, initialstates = doublependulum2D(Δt=0.01, θstart=[-π/3, collect(-π/3:0.5:π/3)[3]])
 # ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
 parallelsearch(experiment, config)

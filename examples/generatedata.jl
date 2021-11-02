@@ -20,7 +20,7 @@ function loaddata(storage; coordinates="maximal", mechanism = nothing)
     throw(ArgumentError("Coordinates setting $coordinates not supported!"))
 end
 
-function cleardata!(data::Vector{Vector{Float64}}; ϵ = 1e-2)
+function _correlated_indices(data::AbstractArray{<:AbstractArray{Float64}}, ϵ)
     N = length(data[1])
     correlatedset = Set{Int}()
     for i in 1:length(data)
@@ -33,42 +33,30 @@ function cleardata!(data::Vector{Vector{Float64}}; ϵ = 1e-2)
             end
         end
     end
-    deleteat!(data, sort!(collect(correlatedset)))
+    return sort!(collect(correlatedset))
+end
+
+function cleardata!(data::AbstractArray{<:AbstractArray{Float64}}; ϵ = 1e-2)
+    correlated_indices = _correlated_indices(data, ϵ)
+    deleteat!(data, correlated_indices)
 end
 
 function cleardata!(datacollection::Tuple; ϵ = 1e-2)
-    data = datacollection[1]
-    N = length(data[1])
-    correlatedset = Set{Int}()
-    for i in 1:length(data)
-        if i in correlatedset
-            continue
-        end
-        for j in i+1:length(data)
-            if sum((data[i]-data[j]).^2/N) < ϵ
-                push!(correlatedset, j)
-            end
-        end
-    end
-    delidx = sort!(collect(correlatedset))
+    correlated_indices = _correlated_indices(datacollection[1], ϵ)
     for data in datacollection
-        deleteat!(data, delidx)
+        deleteat!(data, correlated_indices)
     end
 end
 
-function max2mincoordinates(data, mechanism)
-    mindata = Vector{SVector}()
-    for maxstates in data
-        states = [vector2state(maxstates[i:i+12]) for i in 1:13:length(maxstates)-12]
-        resetMechanism!(mechanism, states)
-        minstates = Vector{Float64}()
-        for eqc in mechanism.eqconstraints
-            append!(minstates, ConstrainedDynamics.minimalCoordinates(mechanism, eqc))
-            append!(minstates, ConstrainedDynamics.minimalVelocities(mechanism, eqc))
-        end
-        push!(mindata, SVector(minstates...))
+function max2mincoordinates(cstate::Vector{Float64}, mechanism)
+    states = tostates(cstate)
+    resetMechanism!(mechanism, states)
+    cstate_min = Vector{Float64}()
+    for eqc in mechanism.eqconstraints
+        append!(cstate_min, ConstrainedDynamics.minimalCoordinates(mechanism, eqc))
+        append!(cstate_min, ConstrainedDynamics.minimalVelocities(mechanism, eqc))
     end
-    return mindata
+    return cstate_min
 end
 
 function min2maxcoordinates(data, mechanism)
@@ -86,7 +74,7 @@ function min2maxcoordinates(data, mechanism)
     return maxdata
 end
 
-function simplependulum2D(;Δt = 0.01, θstart = 0.)
+function simplependulum2D(;Δt = 0.01, θstart = 0., ωstart = 0.)
     joint_axis = [1.0; 0.0; 0.0]
     g = -9.81
     m = 1.0
@@ -154,7 +142,7 @@ function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.])
     return storage, mech, initialstates
 end
 
-function cartpole(;Δt = 0.01, xstart=0., qstart=one(UnitQuaternion), vstart = 0., ωstart = 0.)
+function cartpole(;Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0.)
     xaxis = [1.0; 0.0; 0.0]
     yaxis = [0.0; 1.0; 0.0]
     g = -9.81
@@ -182,7 +170,7 @@ function cartpole(;Δt = 0.01, xstart=0., qstart=one(UnitQuaternion), vstart = 0
     mech = Mechanism(origin, links, constraints, g=g, Δt=Δt)
     
     setPosition!(origin, link1; p2=p01, Δx=SA[0., xstart, 0.])
-    setPosition!(link1, link2; p1=p12, p2=p21, Δq=qstart)
+    setPosition!(link1, link2; p1=p12, p2=p21, Δq=UnitQuaternion(RotX(θstart)))
     setVelocity!(origin, link1; p2=p01, Δv=SA[0., vstart, 0.])
     setVelocity!(link1, link2; p1=p12, p2=p21, Δω=SA[ωstart, 0., 0.])
 
