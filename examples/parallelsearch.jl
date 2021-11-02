@@ -4,9 +4,10 @@ using Suppressor
 mutable struct ParallelConfig
     EXPERIMENT_ID::String
     mechanism::Mechanism
-    storage::Storage
-    X::Matrix
-    Y::Vector{Vector}
+    x_train::Matrix
+    y_train::Vector{Vector{Float64}}
+    x_test::Vector{Vector{Float64}}
+    xresult_test::Vector{Vector{Float64}}
     paramtuples::AbstractArray
     nprocessed::Integer
     onestep_msevec::Vector
@@ -15,7 +16,8 @@ mutable struct ParallelConfig
     checkpointlock::Base.AbstractLock
     resultlock::Base.AbstractLock
 
-    function ParallelConfig(experimentid, mechanism, storage, X, Y, paramtuples, _loadcheckpoint)
+    function ParallelConfig(experimentid::String, mechanism::Mechanism, x_train::Matrix, y_train::Vector{<:Vector},
+                            x_test::Vector{<:Vector}, xresult_test::Vector{<:Vector}, paramtuples, _loadcheckpoint::Bool)
         nprocessed = 0
         onestep_msevec = []
         onestep_params = []
@@ -29,22 +31,22 @@ mutable struct ParallelConfig
                 @warn("No previous checkpoints found, search starts at 0.")
             end
         end
-        new(experimentid, mechanism, storage, X, Y, paramtuples, nprocessed, onestep_msevec, onestep_params,
-            ReentrantLock(), ReentrantLock(), ReentrantLock())
+        new(experimentid, mechanism, x_train, y_train, x_test, xresult_test, paramtuples, nprocessed,
+            onestep_msevec, onestep_params, ReentrantLock(), ReentrantLock(), ReentrantLock())
     end
 end
 
 function parallelsearch(experiment, config)
     tstart = time()
-    Threads.@threads for _ in config.nprocessed+1:length(config.paramtuples)
+    for _ in config.nprocessed+1:length(config.paramtuples)  # Threads.@threads 
         # Get hyperparameters (threadsafe)
         success, params, jobid = _getparams(config)  # Threadsafe
         !success && continue
         _checkpoint(config, tstart, jobid)  # Threadsafe
         # Main experiment
-        storage = nothing  # Define in outer scope
+        predictedstates = nothing  # Define in outer scope
         try
-            storage = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
+            predictedstates = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
             # throw(e)
@@ -52,11 +54,12 @@ function parallelsearch(experiment, config)
         lock(config.resultlock)
         # Writing the results
         try
-            storage !== nothing ? onestep_mse = simulationerror(config.storage, storage) : onestep_mse = Inf
+            predictedstates !== nothing ? onestep_mse = simulationerror(config.xresult_test, predictedstates) : onestep_mse = Inf
             push!(config.onestep_msevec, onestep_mse)
             push!(config.onestep_params, [params...])
         catch e
             display(e)
+            # throw(e)
         finally
             unlock(config.resultlock)
         end

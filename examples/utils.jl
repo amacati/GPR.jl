@@ -16,6 +16,11 @@ function state2vector(state::State)
     return [state.xc..., state.qc.w, state.qc.x, state.qc.y, state.qc.z, state.vc..., state.ωc...]
 end
 
+function cstate2state(cstate::Vector{Float64})
+    @assert length(cstate) % 13 == 0
+    return [cstate[1+offset:13+offset] for offset in 0:13:length(cstate)-1]
+end
+
 function getstates(storage::Storage, i)
     Nbodies = length(storage.x)
     return [[storage.x[id][i]..., storage.q[id][i].w, storage.q[id][i].x, storage.q[id][i].y, storage.q[id][i].z,
@@ -49,12 +54,29 @@ end
 function simulationerror(groundtruth::Storage, predictions::Storage; stop::Integer = length(predictions.x[1]))
     @assert 1 < stop <= length(predictions.x[1])
     @assert length(groundtruth.x[1]) >= length(predictions.x[1])
-    Nbodies = length(mechanism.bodies)
+    Nbodies = length(groundtruth.x)
     error = 0
     for i in 2:stop
         # get vector, compute error
         xtrue = [state[1:3] for state in getstates(groundtruth, i)]  # for t+1
         xpred = [state[1:3] for state in getstates(predictions, i)]  # for t+1
+        for id in 1:Nbodies
+            error += sum((xtrue[id] .- xpred[id]).^2)
+        end
+    end
+    error /= (3*Nbodies*(stop-1))
+    isnan(error) ? (return Inf) : (return error)
+end
+
+function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Vector}; stop::Integer = length(predictions))
+    @assert 1 < stop <= length(predictions)
+    @assert length(groundtruth) >= length(predictions)
+    Nbodies = length(mechanism.bodies)
+    error = 0
+    for i in 1:stop
+        # get vector, compute error
+        xtrue = [state[1:3] for state in cstate2state(groundtruth[i])]  # for t+1
+        xpred = [state[1:3] for state in cstate2state(predictions[i])]  # for t+1
         for id in 1:Nbodies
             error += sum((xtrue[id] .- xpred[id]).^2)
         end

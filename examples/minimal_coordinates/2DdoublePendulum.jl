@@ -11,7 +11,7 @@ include(joinpath("..", "utils.jl"))
 include(joinpath("..", "parallelsearch.jl"))
 
 
-EXPERIMENT_ID = "P2_2D_MIN_GGK"
+EXPERIMENT_ID = "P2_MIN"
 _loadcheckpoint = false
 
 storage, mechanism, initialstates = doublependulum2D(noise = true)
