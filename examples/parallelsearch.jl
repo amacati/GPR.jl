@@ -38,7 +38,7 @@ end
 
 function parallelsearch(experiment, config)
     tstart = time()
-    for _ in config.nprocessed+1:length(config.paramtuples)  # Threads.@threads 
+    Threads.@threads for _ in config.nprocessed+1:length(config.paramtuples)
         # Get hyperparameters (threadsafe)
         success, params, jobid = _getparams(config)  # Threadsafe
         !success && continue

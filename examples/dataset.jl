@@ -37,7 +37,7 @@ function sampledataset(dataset::Dataset, n::Integer; Δt::Float64 = 0.01, random
     nsample = div(n, nsets)
     nsamples = [nsample for _ in 1:nsets]
     nsamples[1:n%nsets] .+= 1  # Distribute remaining samples among first n%Nsets datasets
-    tshift = Integer(round(Δt / dataset.GPΔt))
+    tshift = Integer(round(dataset.GPΔt / Δt))
     @assert all([nsamples[i] <= length(data[i]) - 2tshift for i in 1:nsets])  # Sets contain enough samples
     if random  # Random indices for each storage
         indices = [StatsBase.sample(1:length(data[i]) - 2tshift, nsamples[i], replace=replace) for i in 1:nsets]

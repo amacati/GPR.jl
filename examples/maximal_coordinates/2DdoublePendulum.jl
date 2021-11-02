@@ -14,9 +14,9 @@ include(joinpath("..", "dataset.jl"))
 
 EXPERIMENT_ID = "P2_MAX"
 _loadcheckpoint = false
-Δtsim = 0.01
+Δtsim = 0.001
 testsets = [3, 7, 9, 20]
-ntrials = 1000
+ntrials = 1
 
 dataset = Dataset()
 for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
@@ -48,7 +48,8 @@ x_test, _, xresult_test = sampledataset(dataset, 1000, Δt = Δtsim, exclude = [
 
 mechanism = doublependulum2D(Δt=0.01, θstart=[0, 0])[2]  # Reset Δt to 0.01 in mechanism
 paramtuples = [params .+ (rand(length(params)) .- 0.25) .* 4 .* params for _ in 1:ntrials]
-display(paramtuples)
+push!(paramtuples, params)  # Make sure initial params are also included
+
 config = ParallelConfig(EXPERIMENT_ID, mechanism, x_train, y_train, x_test, xresult_test, paramtuples, _loadcheckpoint)
 
 function experiment(config, params)
@@ -94,7 +95,7 @@ function simulation(config, params)
     for yi in config.y_train
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(config.x_train, yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking()), Optim.Options(time_limit=10.))
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
 
@@ -118,4 +119,4 @@ end
 # storage = simulation(config, params)
 # storage, mechanism, initialstates = doublependulum2D(Δt=Δtsim, θstart=[-π/3, collect(-π/3:0.5:π/3)[3]])
 # ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
-# parallelsearch(experiment, config)
+parallelsearch(experiment, config)
