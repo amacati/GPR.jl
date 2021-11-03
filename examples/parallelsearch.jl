@@ -15,7 +15,7 @@ function parallelsearch(experiment, config)
             predictedstates = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         end
         lock(config["resultlock"])
         # Writing the results
@@ -25,7 +25,7 @@ function parallelsearch(experiment, config)
             push!(config["onestep_params"], [params...])
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         finally
             unlock(config["resultlock"])
         end

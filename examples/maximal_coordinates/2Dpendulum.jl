@@ -9,7 +9,7 @@ using Statistics
 include(joinpath("..", "utils.jl"))
 
 
-function experiment(config, params)
+function experimentP1Max(config, params)
     mechanism = deepcopy(config["mechanism"])
     predictedstates = Vector{Vector{Float64}}()
     gps = Vector()
