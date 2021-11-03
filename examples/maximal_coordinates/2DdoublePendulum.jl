@@ -16,30 +16,24 @@ EXPERIMENT_ID = "P2_MAX"
 _loadcheckpoint = false
 Δtsim = 0.001
 testsets = [3, 7, 9, 20]
-ntrials = 1000
+ntrials = 0
+ntrainingsamples = 0
 
 dataset = Dataset()
 for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
     storage, _, _ = doublependulum2D(Δt=Δtsim, θstart=[θ1, θ2])
     dataset += storage
 end
-x_train, xnext_train, _ = sampledataset(dataset, 2500, Δt = Δtsim, exclude = testsets)
-cleardata!((x_train, xnext_train), ϵ = 1e-4)
+x_train, xnext_train, _ = sampledataset(dataset, 50, Δt = Δtsim, exclude = testsets)
 
 x_train = reduce(hcat, x_train)
-yv11 = [s[8] for s in xnext_train]
 yv12 = [s[9] for s in xnext_train]
 yv13 = [s[10] for s in xnext_train]
-yv21 = [s[21] for s in xnext_train]
 yv22 = [s[22] for s in xnext_train]
 yv23 = [s[23] for s in xnext_train]
 yω11 = [s[11] for s in xnext_train]
-yω12 = [s[12] for s in xnext_train]
-yω13 = [s[13] for s in xnext_train]
 yω21 = [s[24] for s in xnext_train]
-yω22 = [s[25] for s in xnext_train]
-yω23 = [s[26] for s in xnext_train]
-y_train = [yv11, yv12, yv13, yv21, yv22, yv23, yω11, yω12, yω13, yω21, yω22, yω23]
+y_train = [yv12, yv13, yv22, yv23, yω11, yω21]
 
 stdx = std(x_train, dims=2)
 stdx[stdx .== 0] .= 100
@@ -58,7 +52,7 @@ function experiment(config, params)
     for yi in config.y_train
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(config.x_train, yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
     
@@ -70,11 +64,11 @@ function experiment(config, params)
         oldstates = tovstate(config.x_test[i])
         setstates!(mechanism, oldstates)
         μ = predict_velocities(gps, reshape(reduce(vcat, oldstates), :, 1))
-        vcurr, ωcurr = [SVector(μ[1:3]...), SVector(μ[4:6]...)], [SVector(μ[7:9]...), SVector(μ[10:12]...)]
+        vcurr, ωcurr = [SVector(0, μ[1:2]...), SVector(0, μ[3:4]...)], [SVector(μ[5], 0, 0), SVector(μ[6], 0, 0)]
         projectv!(vcurr, ωcurr, mechanism)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
-        push!(predictedstates, reduce(vcat, getstates(mechanism)))  # Extract xnew, write as result
+        push!(predictedstates, getcstate(mechanism))  # Extract xnew, write as result
     end
     return predictedstates
 end
@@ -109,7 +103,7 @@ function simulation(config, params)
         vcurr, ωcurr = [SVector(μ[1:3]...), SVector(μ[4:6]...)], [SVector(μ[7:9]...), SVector(μ[10:12]...)]
         projectv!(vcurr, ωcurr, mechanism)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
-        states = getstates(mechanism)
+        states = getvstates(mechanism)
         overwritestorage(storage, states, i)
     end
     return storage

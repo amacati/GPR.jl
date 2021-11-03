@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+ConstrainedControl = "5933d0f4-dc4a-46ce-a189-54b4465bd7a4"
 ConstrainedDynamics = "65b0d8a9-e9fd-4f02-8653-a7163c490b26"
 ConstrainedDynamicsVis = "07ee0992-da0a-4409-aa8f-e0a0c9c09c30"
 GaussianProcesses = "891a1506-143c-57d2-908e-e1f8e92e6de9"

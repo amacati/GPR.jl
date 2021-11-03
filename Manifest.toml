@@ -120,6 +120,12 @@ git-tree-sha1 = "299304989a5e6473d985212c28928899c74e9421"
 uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 version = "1.5.2"
 
+[[ConstrainedControl]]
+deps = ["ConstrainedDynamics", "LinearAlgebra", "Rotations", "StaticArrays"]
+git-tree-sha1 = "d7e9362417527da170a3110204c181483fa89ba4"
+uuid = "5933d0f4-dc4a-46ce-a189-54b4465bd7a4"
+version = "0.1.5"
+
 [[ConstrainedDynamics]]
 deps = ["Colors", "DocStringExtensions", "ForwardDiff", "LightXML", "LinearAlgebra", "Rotations", "StaticArrays"]
 git-tree-sha1 = "2d639b2a1fdd987ad3561882d2322e9d65705ca1"

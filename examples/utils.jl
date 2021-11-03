@@ -36,23 +36,53 @@ function tocstate(state::State)
     return [state.xc..., state.qc.w, state.qc.x, state.qc.y, state.qc.z, state.vc..., state.ωc...]
 end
 
-function tovstate(cstates::Vector{Float64})
+function tocstate(vstate::Vector{Vector{Float64}})
+    return reduce(vcat, vstate)
+end
+
+function tovstate(cstates::AbstractVector)
     @assert length(cstates) % 13 == 0 ("State size has to be multiple of 13")
     return [cstates[i:i+12] for i in 1:13:length(cstates)]
 end
 
-function getstates(storage::Storage, i)
+function getcstate(mechanism::Mechanism)
+    Nbodies = length(mechanism.bodies)
+    cstate = Vector{Float64}(undef, 13*Nbodies)
+    for id in 1:Nbodies
+        offset = (id-1)*13
+        cstate[1+offset:13+offset] = tocstate(mechanism.bodies[id].state)
+    end
+    return cstate
+end
+
+function getcstate(storage::Storage, i)
+    Nbodies = length(storage.x)
+    cstate = Vector{Float64}(undef, 13*Nbodies)
+    for id in 1:Nbodies
+        offset = (id-1)*13
+        cstate[1+offset:13+offset] = [storage.x[id][i]..., storage.q[id][i].w, storage.q[id][i].x, storage.q[id][i].y, storage.q[id][i].z,
+        storage.v[id][i]..., storage.ω[id][i]...]
+    end
+    return cstate
+end
+
+function getvstates(storage::Storage, i)
     Nbodies = length(storage.x)
     return [[storage.x[id][i]..., storage.q[id][i].w, storage.q[id][i].x, storage.q[id][i].y, storage.q[id][i].z,
              storage.v[id][i]..., storage.ω[id][i]...] for id in 1:Nbodies]
 end
 
-function getstates(mechanism::Mechanism)
+function getvstates(mechanism::Mechanism)
     Nbodies = length(mechanism.bodies)
     return [tocstate(mechanism.bodies[id].state) for id in 1:Nbodies]
 end
 
-function setstates!(mechanism, vstates)
+function getstates(mechanism::Mechanism)
+    Nbodies = length(mechanism.bodies)
+    return [deepcopy(mechanism.bodies[id].state) for id in 1:Nbodies]
+end
+
+function setstates!(mechanism::Mechanism, vstates::Vector{Vector{Float64}})
     @assert length(vstates) == length(mechanism.bodies) ("State vector size has to be #Nbodies!") 
     states = tostates(vstates)
     for id in 1:length(mechanism.bodies)
@@ -79,8 +109,8 @@ function simulationerror(groundtruth::Storage, predictions::Storage; stop::Integ
     error = 0
     for i in 2:stop
         # get vector, compute error
-        xtrue = [state[1:3] for state in getstates(groundtruth, i)]  # for t+1
-        xpred = [state[1:3] for state in getstates(predictions, i)]  # for t+1
+        xtrue = [state[1:3] for state in getvstates(groundtruth, i)]  # for t+1
+        xpred = [state[1:3] for state in getvstates(predictions, i)]  # for t+1
         for id in 1:Nbodies
             error += sum((xtrue[id] .- xpred[id]).^2)
         end
@@ -91,8 +121,9 @@ end
 
 function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Vector}; stop::Integer = length(predictions))
     @assert 1 < stop <= length(predictions)
+    @assert length(groundtruth[1]) % 13 == 0 ("State has to be of length Nbodies*13")
     @assert length(groundtruth) >= length(predictions)
-    Nbodies = length(mechanism.bodies)
+    Nbodies = div(length(groundtruth[1]), 13)
     error = 0
     for i in 1:stop
         # get vector, compute error
@@ -102,7 +133,7 @@ function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Ve
             error += sum((xtrue[id] .- xpred[id]).^2)
         end
     end
-    error /= (3*Nbodies*(stop-1))
+    error /= (3*Nbodies*(stop))
     isnan(error) ? (return Inf) : (return error)
 end
 

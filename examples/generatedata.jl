@@ -69,7 +69,7 @@ function min2maxcoordinates(data, mechanism)
             ConstrainedDynamics.setVelocity!(mechanism, eqc, [minstates[N+Nc+1:N+2Nc]])
             N += 2Nc
         end
-        push!(maxdata, SVector(vcat(getstates(mechanism)...)))
+        push!(maxdata, SVector(getcstate(mechanism)...))
     end
     return maxdata
 end
