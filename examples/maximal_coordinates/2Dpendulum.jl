@@ -16,7 +16,7 @@ function experiment(config, params)
     for yi in config["y_train"]
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(config["x_train"], yi, MeanZero(), kernel)
-        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
 
