@@ -60,7 +60,7 @@ function _checkpoint(config, tstart, jobid)
         minutes = div(secs-hours*3600, 60)
         secs -= (hours*3600 + minutes * 60)
         println("Estimated time to completion: $(hours)h, $(minutes)m, $(secs)s")
-        if jobid % 100 == 0
+        if jobid % 20 == 0
             lock(config["checkpointlock"])
             try
                 checkpointdict = Dict("nprocessed" => jobid, "onestep_msevec" => config["onestep_msevec"],
