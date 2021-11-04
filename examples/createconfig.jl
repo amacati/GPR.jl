@@ -6,7 +6,7 @@ root = dirname(@__FILE__)
 config = Dict{String, Vector{Float64}}()
 
 EXPERIMENT_IDs = Vector{String}()
-for etype in ["CP_MAX", "P1_MAX", "P2_MAX"], nsamples in [2^i for i in 3:9]
+for etype in ["CP_MAX", "P1_MAX", "P2_MAX", "CP_MIN", "P1_MIN", "P2_MIN"], nsamples in [2^i for i in 1:9]
     id = etype*string(nsamples)*"_FINAL"
     push!(EXPERIMENT_IDs, id)
     checkpoint_dir = loadcheckpoint(joinpath(root, "data", id))

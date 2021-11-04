@@ -5,6 +5,7 @@ using ConstrainedDynamicsVis
 using ConstrainedDynamics
 using LineSearches
 using Statistics
+using JSON
 
 include(joinpath("..", "utils.jl"))
 
@@ -51,7 +52,7 @@ function simulation(config, params)
     for yi in config["y_train"]
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(config["x_train"], yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
 
@@ -60,19 +61,61 @@ function simulation(config, params)
     end
 
     xold, vold, θold, ωold = config["x_test"][1]
-    xcurr, _, θcurr = config["xnext_test"][1]
+    xcurr, _, θcurr, _ = config["xnext_test"][1]
     for i in 2:length(storage.x[1])
         vcurr, ωcurr = predict_velocities(gps, reshape([xold, vold, θold, ωold], :, 1))
         storage.x[1][i] = [0, xcurr, 0]
         storage.q[1][i] = one(UnitQuaternion)
         storage.x[2][i] = [0, xcurr+0.5l*sin(θcurr), -0.5l*cos(θcurr)]
         storage.q[2][i] = UnitQuaternion(RotX(θcurr))
-        xold, vold, θold, ωold = xcurr, vcurr, θcurr,ωcurr
+        xold, vold, θold, ωold = xcurr, vcurr, θcurr, ωcurr
         xcurr += vcurr*mechanism.Δt
         θcurr += ωcurr*mechanism.Δt
     end
     return storage
 end
 
-#storage = simulation(config, params)
-#ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
+function get_config()
+    # Generate Dataset
+    Δtsim = 0.001
+    ntestsets = 5
+    dataset = Dataset()
+    nsamples = 512
+    n = 1
+    for θstart in -π:1:π, vstart in -1:1:1, ωstart in -1:1:1
+        ωstart == -2 && display((ωstart,n))
+        n += 1
+        storage, _, _ = cartpole(Δt=Δtsim, θstart=θstart, vstart=vstart, ωstart=ωstart)
+        dataset += storage
+    end
+    mechanism = cartpole(Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
+    testsets = Integer.(round.(collect(range(1, stop=length(dataset.storages), length=ntestsets))))
+    display(testsets)
+    x_train, xnext_train, _ = sampledataset(dataset, nsamples, Δt = Δtsim, exclude = testsets)
+    x_train = [max2mincoordinates(cstate, mechanism) for cstate in x_train]
+    xnext_train = [max2mincoordinates(cstate, mechanism) for cstate in xnext_train]
+    x_train = reduce(hcat, x_train)
+    yv = [s[2] for s in xnext_train]
+    yω = [s[4] for s in xnext_train]
+    y_train = [yv, yω]
+    x_test, xnext_test, _ = sampledataset(dataset, 1000, Δt = Δtsim, exclude = [i for i in 1:length(dataset.storages) if !(i in testsets)])
+    x_test = [max2mincoordinates(cstate, mechanism) for cstate in x_test]
+    xnext_test = [max2mincoordinates(cstate, mechanism) for cstate in xnext_test]
+    config = Dict("mechanism"=>mechanism, 
+                  "x_train"=>x_train, 
+                  "y_train"=>y_train,
+                  "x_test"=>x_test,
+                  "xnext_test"=>xnext_test,
+                   )
+    return config
+end
+
+function loadconfig()
+    open(joinpath(dirname(dirname(@__FILE__)), "config", "config.json"),"r") do f
+        return JSON.parse(f)
+    end
+end
+
+cnfg = loadconfig()
+storage = simulation(get_config(), cnfg["CP_MIN512_FINAL"])
+ConstrainedDynamicsVis.visualize(config["mechanism"], storage; showframes = true, env = "editor")

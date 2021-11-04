@@ -261,7 +261,7 @@ function hyperparametersearchCPMin(ntrials, nsamples, _loadcheckpoint=false)
     Δtsim = 0.001
     ntestsets = 5
     dataset = Dataset()
-    for θstart in -π:0.5:π, vstart in -2:1:2, ωstart in -2:1:2
+    for θstart in -π:1:π, vstart in -1:1:1, ωstart in -1:1:1
         storage, _, _ = cartpole(Δt=Δtsim, θstart=θstart, vstart=vstart, ωstart=ωstart)
         dataset += storage
     end

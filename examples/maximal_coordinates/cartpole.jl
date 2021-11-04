@@ -72,7 +72,3 @@ function simulation(config, params)
     end
     return storage
 end
-
-# storage = simulation(config, params)
-# storage, _, _ = cartpole(Δt=0.01, θstart=-π, vstart=-2, ωstart=0)
-# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
