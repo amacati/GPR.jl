@@ -10,7 +10,7 @@ for etype in ["CP_MAX", "P1_MAX", "P2_MAX"], nsamples in [2^i for i in 1:9]
     push!(EXPERIMENT_IDs, etype*string(nsamples)*"_FINAL")
 end
 
-results = Dict(id => loadcheckpoint(joinpath(root, "data", id)) for id in EXPERIMENT_IDs)
+results = Dict(id => loadcheckpoint(id) for id in EXPERIMENT_IDs)
 
 cp_error = Vector{Float64}()
 for nsamples in [2^i for i in 1:9]

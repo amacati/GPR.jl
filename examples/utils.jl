@@ -138,13 +138,13 @@ function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Ve
 end
 
 function checkpoint(experimentid::String, checkpointdict::Dict)
-    open(experimentid*"_checkpoint.json","w") do f
+    open(joinpath(dirname(@__FILE__), "data", experimentid*"_checkpoint.json"),"w") do f
         JSON.print(f, checkpointdict)
     end
 end
 
 function loadcheckpoint(experimentid::String)
-    open(experimentid*"_checkpoint.json","r") do f
+    open(joinpath(dirname(@__FILE__), "data", experimentid*"_checkpoint.json"),"r") do f
         return JSON.parse(f)
     end
 end
