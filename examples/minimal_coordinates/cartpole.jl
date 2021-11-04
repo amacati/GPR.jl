@@ -38,6 +38,73 @@ function experimentCPMin(config, params)
     return predictedstates
 end
 
+function experimentNoisyCPMin(config, params)
+    l = 0.5
+    # Generate Dataset
+    Δtsim = 0.001
+    ntestsets = 5
+    dataset = Dataset()
+    Σ = config["Σ"]
+    ΔJ = [SMatrix{3,3,Float64}(Σ["J"]randn(9)...), SMatrix{3,3,Float64}(Σ["J"]randn(9)...)]
+    m = abs.(ones(2) .+ Σ["m"]randn(2))
+    for θstart in -π:1:π, vstart in -1:1:1, ωstart in -1:1:1
+        storage, _, _ = cartpole(Δt=Δtsim, θstart=θstart, vstart=vstart, ωstart=ωstart, m = m, ΔJ = ΔJ)
+        dataset += storage
+    end
+    mechanism = cartpole(Δt=0.01, m = m, ΔJ = ΔJ)[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    testsets = Integer.(round.(collect(range(1, stop=length(dataset.storages), length=ntestsets))))
+    x_test_gt, xnext_test_gt, xresult_test_gt = deepcopy(sampledataset(dataset, 1000, Δt = Δtsim, exclude = [i for i in 1:length(dataset.storages) if !(i in testsets)]))
+    x_test_gt = [max2mincoordinates(cstate, mechanism) for cstate in x_test_gt]  # Noise free
+    xnext_test_gt = [max2mincoordinates(cstate, mechanism) for cstate in xnext_test_gt]  # Noise free
+
+    # Add noise to the dataset
+    for storage in dataset.storages
+        for id in 1:length(storage.x)
+            for t in 1:length(storage.x[id])
+                storage.x[id][t] += Σ["x"]*[0, randn(2)...]  # Pos noise, x is fixed
+                storage.q[id][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[id][t]
+                storage.v[id][t] += Σ["v"]*[0, randn(2)...]  # Zero noise in fixed vx
+                storage.ω[id][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+            end
+        end
+    end
+
+    # Create train and testsets
+    x_train, xnext_train, _ = sampledataset(dataset, config["nsamples"], Δt = Δtsim, exclude = testsets)
+    x_train = [max2mincoordinates(cstate, mechanism) for cstate in x_train]
+    xnext_train = [max2mincoordinates(cstate, mechanism) for cstate in xnext_train]
+    x_train = reduce(hcat, x_train)
+    yv = [s[2] for s in xnext_train]
+    yω = [s[4] for s in xnext_train]
+    y_train = [yv, yω]
+    x_test, _, _ = sampledataset(dataset, 1000, Δt = Δtsim, exclude = [i for i in 1:length(dataset.storages) if !(i in testsets)])
+    x_test = [max2mincoordinates(cstate, mechanism) for cstate in x_test]  # Noisy
+
+    predictedstates = Vector{Vector{Float64}}()
+    gps = Vector()
+    for yi in y_train
+        kernel = SEArd(log.(params[2:end]), log(params[1]))
+        gp = GP(x_train, yi, MeanZero(), kernel)
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        push!(gps, gp)
+    end
+
+    function predict_velocities(gps, oldstates)
+        return [predict_y(gp, oldstates)[1][1] for gp in gps]
+    end
+    
+    for i in 1:length(x_test)
+        xold, vold, θold, ωold = x_test[i]  # Noisy
+        xcurr, _, θcurr, _ = xnext_test_gt[i]  # Noise free
+        vcurr, ωcurr = predict_velocities(gps, reshape([xold, vold, θold, ωold], :, 1))
+        xnew = xcurr + vcurr*mechanism.Δt
+        θnew = θcurr + ωcurr*mechanism.Δt
+        cstate = [0, xnew, zeros(12)..., 0.5l*sin(θnew)+xnew, -0.5l*cos(θnew), zeros(10)...]  # Only position matters for prediction error
+        push!(predictedstates, cstate)
+    end
+    return predictedstates, xresult_test_gt
+end
+
 function simulation(config, params)
     l = 0.5
     mechanism = deepcopy(config["mechanism"])
@@ -75,6 +142,7 @@ function simulation(config, params)
     return storage
 end
 
+#=
 function get_config()
     # Generate Dataset
     Δtsim = 0.001
@@ -119,3 +187,4 @@ end
 cnfg = loadconfig()
 storage = simulation(get_config(), cnfg["CP_MIN512_FINAL"])
 ConstrainedDynamicsVis.visualize(config["mechanism"], storage; showframes = true, env = "editor")
+=#

@@ -4,8 +4,9 @@ using Suppressor
 
 function parallelsim(experiment, config)
     tstart = time()
-    Threads.@threads for _ in config["nprocessed"]+1:config["nruns"]
-        # Get hyperparameters (threadsafe)
+    for jobid in config["nprocessed"]+1:config["nruns"]  # Threads.@threads 
+        # Increment nprocessed (threadsafe)
+        lock(config["paramlock"])
         try
             @assert config["nprocessed"] < config["nruns"]
             config["nprocessed"] += 1
@@ -18,21 +19,21 @@ function parallelsim(experiment, config)
         _checkpoint(config, tstart, jobid)  # Threadsafe
         # Main experiment
         predictedstates = nothing  # Define in outer scope
+        xresult_test = nothing
         try
-            predictedstates = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
+            predictedstates, xresult_test = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         end
         lock(config["resultlock"])
         # Writing the results
         try
-            predictedstates !== nothing ? onestep_mse = simulationerror(config["xresult_test"], predictedstates) : onestep_mse = Inf
+            predictedstates !== nothing ? onestep_mse = simulationerror(xresult_test, predictedstates) : onestep_mse = nothing
             push!(config["onestep_msevec"], onestep_mse)
-            push!(config["onestep_params"], [params...])
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         finally
             unlock(config["resultlock"])
         end
@@ -44,9 +45,9 @@ end
 
 function _checkpoint(config, tstart, jobid)
     if jobid % 10 == 0
-        println("Processing job $(jobid)/$(length(config["paramtuples"]))")
+        println("Processing job $(jobid)/$(config["nruns"])")
         Δt = time() - tstart
-        secs = Int(round(Δt*(length(config["paramtuples"])/jobid-1)))
+        secs = Int(round(Δt*(config["nruns"]/jobid-1)))
         hours = div(secs, 3600)
         minutes = div(secs-hours*3600, 60)
         secs -= (hours*3600 + minutes * 60)

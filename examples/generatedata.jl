@@ -74,10 +74,9 @@ function min2maxcoordinates(data, mechanism)
     return maxdata
 end
 
-function simplependulum2D(;Δt = 0.01, θstart = 0., ωstart = 0.)
+function simplependulum2D(;Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0, ΔJ = SMatrix{3,3,Float64}(zeros(9)...))
     joint_axis = [1.0; 0.0; 0.0]
     g = -9.81
-    m = 1.0
     l = 1.0
     r = 0.01
     p2 = [0.0;0.0;l / 2] # joint connection point
@@ -86,6 +85,7 @@ function simplependulum2D(;Δt = 0.01, θstart = 0., ωstart = 0.)
     # Links
     origin = Origin{Float64}()
     link1 = Cylinder(r, l, m)
+    link1.J = abs.(link1.J + ΔJ)
 
     # Constraints
     joint_between_origin_and_link1 = EqualityConstraint(Revolute(origin, link1, joint_axis; p2=p2))
@@ -103,7 +103,7 @@ function simplependulum2D(;Δt = 0.01, θstart = 0., ωstart = 0.)
     return storage, mech, initialstates
 end
 
-function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.])
+function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.], m = [1., sqrt(2)/2], ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)])
     # Parameters
     l1 = 1.0
     l2 = sqrt(2) / 2
@@ -121,8 +121,10 @@ function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.])
 
     # Links
     origin = Origin{Float64}()
-    link1 = Box(x, y, l1, l1, color = RGBA(1., 1., 0.))
-    link2 = Box(x, y, l2, l2, color = RGBA(1., 1., 0.))
+    link1 = Box(x, y, l1, m[1], color = RGBA(1., 1., 0.))
+    link2 = Box(x, y, l2, m[2], color = RGBA(1., 1., 0.))
+    link1.J = abs.(link1.J + ΔJ[1])
+    link2.J = abs.(link2.J + ΔJ[2])
 
     # Constraints
     socket0to1 = EqualityConstraint(Revolute(origin, link1, joint_axis1; p2=vert11))
@@ -141,13 +143,12 @@ function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.])
     storage = simulate!(mech, ΔT, record = true)
     return storage, mech, initialstates
 end
+doublependulum2D()
 
-function cartpole(;Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0.)
+function cartpole(;Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0., m = [1., 1.], ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)])
     xaxis = [1.0; 0.0; 0.0]
     yaxis = [0.0; 1.0; 0.0]
     g = -9.81
-    m1 = 1.0
-    m2 = 1.0
     l = 0.5
     r = 0.01
     p01 = [0.0; 0.0; 0.0] # joint connection point
@@ -158,8 +159,10 @@ function cartpole(;Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0.)
     # Links
     x, y, z = 0.2, 0.3, 0.1
     origin = Origin{Float64}()
-    link1 = Box(x, y, z, m1)
-    link2 = Cylinder(r, l, m2)
+    link1 = Box(x, y, z, m[1])
+    link2 = Cylinder(r, l, m[2])
+    link1.J = abs.(link1.J + ΔJ[1])
+    link2.J = abs.(link2.J + ΔJ[2])
 
     # Constraints
     joint_origin_link1 = EqualityConstraint(Prismatic(origin, link1, yaxis; p2=p01))
