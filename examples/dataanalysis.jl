@@ -3,63 +3,54 @@ using Plots
 include("utils.jl")
 
 
-EXPERIMENT_IDs = ["P1_2D_MIN_GGK", "P1_2D_MAX_GGK", "P1_2D_PREV_VE", "P2_2D_MIN_GGK", "P2_2D_MAX_GGK"]
+root = dirname(@__FILE__)
 
-for EXPERIMENT_ID in EXPERIMENT_IDs
-    success, checkpointdict = loadcheckpoint(EXPERIMENT_ID*"_FINAL")
-    !success && println("No checkpoint found. Please check the experiment ID")
-
-    onestep_msevec = checkpointdict["onestep_msevec"]
-    onestep_params = checkpointdict["onestep_params"]
-    onestep_params = onestep_params[onestep_msevec .!== nothing]
-    onestep_msevec = onestep_msevec[onestep_msevec .!== nothing]
-    println("$EXPERIMENT_ID : Best onestep MSE: $(minimum(onestep_msevec))")
+EXPERIMENT_IDs = Vector{String}()
+for etype in ["CP_MAX", "P1_MAX", "P2_MAX"], nsamples in [2^i for i in 1:9]
+    push!(EXPERIMENT_IDs, etype*string(nsamples)*"_FINAL")
 end
 
-#=
-data = [1e-3, 3e-4, 2e-4, 2e-4]
-labels = ["0 v prediction" "last v prediction" "GP min" "GP max"]
-osa_bar_plot = bar(data,
-                   xticks=(1:4, labels),
-                   ylabel="One Step Ahead forecast error",
-                   label="",
-                   title="OSA error comparison !NOT ACTUAL DATA!")
-png(osa_bar_plot, "barplot_OSAerror")
+results = Dict(id => loadcheckpoint(joinpath(root, "data", id)) for id in EXPERIMENT_IDs)
 
-steps = 100
-cumdata = []
-for id in 1:length(data)
-    push!(cumdata, data[id] .+ randn(steps).*0.01*data[id])
+cp_error = Vector{Float64}()
+for nsamples in [2^i for i in 1:9]
+    onestep_msevec = results["CP_MAX"*string(nsamples)*"_FINAL"]["onestep_msevec"]
+    filter!(x -> x!==nothing, onestep_msevec)
+    min_mse = minimum(onestep_msevec)
+    push!(cp_error, min_mse)
 end
 
-osa_series_plot = plot(1:steps, cumdata,
-                       xlabel="Steps",
-                       ylabel="One Step Ahead forecast error",
-                       label=labels,
-                       leg=:left,
-                       title="OSA error comparison !NOT ACTUAL DATA!")
-png(osa_series_plot, "seriesplot_OSAerror")
+xvalues = [2^i for i in 1:9]
+plt = bar(1:length(xvalues), cp_error, xticks = (1:length(xvalues), xvalues),
+          xlabel = "Training samples",
+          ylabel = "One Step Ahead forecast error", 
+          title = "Cartpole maximal coordinates OSA error")
+png(plt, "cp_error_max")
 
-data = [1e-1, 3e-2, 5e-3, 5e-3]
-labels = ["0 v prediction" "last v prediction" "GP min" "GP max"]
-osa_bar_plot = bar(data,
-                   xticks=(1:4, labels),
-                   ylabel="Simulation error",
-                   label="",
-                   title="Simulation error comparison !NOT ACTUAL DATA!")
-png(osa_bar_plot, "barplot_SIMerror")
-
-steps = 100
-cumdata = []
-for id in 1:length(data)
-    push!(cumdata, cumsum(data[id]/steps .+ randn(steps).*0.01*data[id]))
+p1_error = Vector{Float64}()
+for nsamples in [2^i for i in 1:9]
+    onestep_msevec = results["P1_MAX"*string(nsamples)*"_FINAL"]["onestep_msevec"]
+    filter!(x->x!==nothing, onestep_msevec)
+    min_mse = minimum(onestep_msevec)
+    push!(p1_error, min_mse)
 end
 
-osa_series_plot = plot(1:steps, cumdata,
-                       xlabel="Steps",
-                       ylabel="One Step Ahead forecast error",
-                       label=labels,
-                       leg=:left,
-                       title="Simulation error comparison !NOT ACTUAL DATA!")
-png(osa_series_plot, "seriesplot_SIMerror")
-=#
+plt = bar(1:length(xvalues), p1_error, xticks = (1:length(xvalues), xvalues),
+          xlabel = "Training samples",
+          ylabel = "One Step Ahead forecast error", 
+          title = "1 link pendulum maximal coordinates OSA error")
+png(plt, "p1_error_max")
+
+p2_error = Vector{Float64}()
+for nsamples in [2^i for i in 1:9]
+    onestep_msevec = results["P2_MAX"*string(nsamples)*"_FINAL"]["onestep_msevec"]
+    filter!(x->x!==nothing, onestep_msevec)
+    min_mse = minimum(onestep_msevec)
+    push!(p2_error, min_mse)
+end
+
+plt = bar(1:length(xvalues), p2_error, xticks = (1:length(xvalues), xvalues),
+          xlabel = "Training samples",
+          ylabel = "One Step Ahead forecast error", 
+          title = "2 link pendulum maximal coordinates OSA error")
+png(plt, "p2_error_max")

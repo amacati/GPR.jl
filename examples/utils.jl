@@ -144,11 +144,7 @@ function checkpoint(experimentid::String, checkpointdict::Dict)
 end
 
 function loadcheckpoint(experimentid::String)
-    checkpointdict = Dict()
-    # If there is no checkpoint, default to empty dictionary
-    !Base.Filesystem.isfile(experimentid*"_checkpoint.json") && (return false, checkpointdict)
     open(experimentid*"_checkpoint.json","r") do f
-        checkpointdict = JSON.parse(f)
+        return JSON.parse(f)
     end
-    return true, checkpointdict
 end
