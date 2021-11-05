@@ -9,13 +9,30 @@ using Statistics
 include(joinpath("..", "utils.jl"))
 
 
-function experimentP1Max(config, params)
+function experimentP1Max(config, _...)  # Placeholder arguments necessary to be called correctly by parallelrun
     mechanism = deepcopy(config["mechanism"])
+    # Sample from dataset
+    dataset = config["dataset"]
+    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
+    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
+    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
+    xtrain_t0 = reduce(hcat, xtrain_t0)
+    yv2 = [s[9] for s in xtrain_t1]
+    yv3 = [s[10] for s in xtrain_t1]
+    yω = [s[11] for s in xtrain_t1]
+    ytrain = [yv2, yv3, yω]
+    xtest_t0, xtest_tk = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, 
+                                       pseudorandom = true, exclude = trainsets, stepsahead=[0,config["simsteps"]+1])
+    stdx = std(xtrain_t0, dims=2)
+    stdx[stdx .== 0] .= 1000
+    params = [100., (10 ./(stdx))...]
+    params = params .+ (5rand(length(params)) .- 0.999) .* params
+
     predictedstates = Vector{Vector{Float64}}()
     gps = Vector()
-    for yi in config["y_train"]
+    for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(config["x_train"], yi, MeanZero(), kernel)
+        gp = GP(xtrain_t0, yi, MeanZero(), kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
@@ -24,17 +41,20 @@ function experimentP1Max(config, params)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    for i in 1:length(config["x_test"])
-        oldstates = tovstate(config["x_test"][i])
-        setstates!(mechanism, oldstates)
-        μ = predict_velocities(gps, reshape(reduce(vcat, oldstates), :, 1))
-        vcurr, ωcurr = [SVector(0, μ[1:2]...)], [SVector(μ[3], 0, 0)]
-        projectv!(vcurr, ωcurr, mechanism)
-        foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
+    for i in 1:length(xtest_t0)
+        setstates!(mechanism, tovstate(xtest_t0[i]))
+        oldstates = xtest_t0[i]
+        for _ in 1:config["simsteps"]
+            μ = predict_velocities(gps, reshape(reduce(vcat, oldstates), :, 1))
+            vcurr, ωcurr = [SVector(0, μ[1:2]...)], [SVector(μ[3], 0, 0)]
+            projectv!(vcurr, ωcurr, mechanism)
+            foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
+            oldstates = getcstate(mechanism)
+        end
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
         push!(predictedstates, getcstate(mechanism))  # Extract xnew, write as result
     end
-    return predictedstates
+    return predictedstates, xtest_tk, params
 end
 
 function experimentNoisyP1Max(config, params)
@@ -49,37 +69,40 @@ function experimentNoisyP1Max(config, params)
         storage, _, _ = simplependulum2D(Δt=Δtsim, θstart=θ, m = m, ΔJ = ΔJ)
         dataset += storage
     end
-    testsets = Integer.(round.(collect(range(1, stop=length(dataset.storages), length=ntestsets))))
-    x_test_gt, _, xresult_test_gt = deepcopy(sampledataset(dataset, 1000, Δt = Δtsim, exclude = [i for i in 1:length(dataset.storages) if !(i in testsets)]))
+    mechanism = simplependulum2D(Δt=0.01, m = m, ΔJ = ΔJ)[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    l = mechanism.bodies[1].shape.rh[2]
+    testsets = StatsBase.sample(1:length(dataset.storages), ntestsets, replace=false)
+    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
+    xtest_t0true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = Δtsim, random = true,
+                                                        pseudorandom = true, exclude = trainsets, stepsahead=[0,config["simsteps"]+1]))
 
     # Add noise to the dataset
     for storage in dataset.storages
-        for id in 1:length(storage.x)
-            for t in 1:length(storage.x[id])
-                storage.x[id][t] += Σ["x"]*[0, randn(2)...]  # Pos noise, x is fixed
-                storage.q[id][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[id][t]
-                storage.v[id][t] += Σ["v"]*[0, randn(2)...]  # Zero noise in fixed vx
-                storage.ω[id][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-            end
+        for t in 1:length(storage.x[1])
+            storage.q[1][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[1][t]  # Small error around θ
+            storage.ω[1][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+            θ = Rotations.rotation_angle(storage.q[1][t])*sign(storage.q[1][t].x)*sign(storage.q[1][t].w)  # Signum for axis direction
+            ω = storage.ω[1][t][1]
+            storage.x[1][t] = [0, l/2*sin(θ), -l/2*cos(θ)]  # Noise is consequence of θ and ω
+            storage.v[1][t] = [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]  # l/2 because measurement is in the center of the pendulum
         end
     end
 
     # Create train and testsets
-    x_train, xnext_train, _ = sampledataset(dataset, config["nsamples"], Δt = Δtsim, exclude = testsets)
-    x_train = reduce(hcat, x_train)
-    yv2 = [s[9] for s in xnext_train]
-    yv3 = [s[10] for s in xnext_train]
-    yω = [s[11] for s in xnext_train]
+    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = Δtsim, random = true, exclude = testsets, stepsahead = 0:1)
+    xtrain_t0 = reduce(hcat, xtrain_t0)
+    yv2 = [s[9] for s in xtrain_t1]
+    yv3 = [s[10] for s in xtrain_t1]
+    yω = [s[11] for s in xtrain_t1]
     y_train = [yv2, yv3, yω]
-    x_test, _, _ = sampledataset(dataset, 1000, Δt = Δtsim, exclude = [i for i in 1:length(dataset.storages) if !(i in testsets)])
-    mechanism = simplependulum2D(Δt=0.01, m = m, ΔJ = ΔJ)[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = Δtsim, random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
 
     predictedstates = Vector{Vector{Float64}}()
     gps = Vector()
     for yi in y_train
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(x_train, yi, MeanZero(), kernel)
-        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        gp = GP(xtrain_t0, yi, MeanZero(), kernel)
+        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
     
@@ -87,17 +110,20 @@ function experimentNoisyP1Max(config, params)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    for i in 1:length(x_test)
-        oldstates = tovstate(x_test_gt[i])
-        setstates!(mechanism, oldstates)
-        μ = predict_velocities(gps, reshape(x_test[i], :, 1))
-        vcurr, ωcurr = [SVector(0, μ[1:2]...)], [SVector(μ[3], 0, 0)]
-        projectv!(vcurr, ωcurr, mechanism)
-        foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
+    for i in 1:length(xtest_t0)
+        setstates!(mechanism, tovstate(xtest_t0true[i]))
+        oldstates = xtest_t0[i]
+        for _ in 1:config["simsteps"]
+            μ = predict_velocities(gps, reshape(oldstates, :, 1))
+            vcurr, ωcurr = [SVector(0, μ[1:2]...)], [SVector(μ[3], 0, 0)]
+            projectv!(vcurr, ωcurr, mechanism)
+            foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
+            oldstates = getcstate(mechanism)
+        end
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
         push!(predictedstates, getcstate(mechanism))  # Extract xnew, write as result
     end
-    return predictedstates, xresult_test_gt
+    return predictedstates, xtest_tktrue
 end
 
 function simulation(config, params)
@@ -137,5 +163,4 @@ function simulation(config, params)
 end
 
 # storage = simulation(config, params)
-# storage, mechanism, _ = simplependulum2D(Δt=0.01, θstart=collect(-π/2:0.1:π/2)[3])
 # ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")

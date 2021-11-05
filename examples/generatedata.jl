@@ -135,7 +135,7 @@ function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.], m
     mech = Mechanism(origin, links, constraints, Δt=Δt)
 
     setPosition!(origin,link1, p2=vert11, Δq=q1)
-    setPosition!(link1, link2, p1=vert12, p2=vert21, Δq=inv(q1)*q2)
+    setPosition!(link1, link2, p1=vert12, p2=vert21, Δq=q2)
     setVelocity!(origin, link1; p2=vert11, Δω=SA[ωstart[1], 0., 0.])
     setVelocity!(link1, link2; p1=vert12, p2=vert21, Δω=SA[ωstart[2], 0., 0.])
 

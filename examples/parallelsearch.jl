@@ -1,57 +1,50 @@
-using ConstrainedDynamics: Mechanism, Storage
-using Suppressor
-
-
 function parallelsearch(experiment, config)
     tstart = time()
-    Threads.@threads for _ in config["nprocessed"]+1:length(config["paramtuples"])
+    Threads.@threads for jobid in config["nprocessed"]+1:length(config["paramtuples"])
         # Get hyperparameters (threadsafe)
-        success, params, jobid = _getparams(config)  # Threadsafe
-        !success && continue
-        _checkpoint(config, tstart, jobid)  # Threadsafe
-        # Main experiment
-        predictedstates = nothing  # Define in outer scope
+        lock(config["paramlock"])
         try
-            predictedstates = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
+            @assert config["nprocessed"] < config["nruns"]
+            config["nprocessed"] += 1
+        catch e
+            continue
+        finally
+            unlock(config["paramlock"])
+        end
+        checkpoint_hpsearch(config, tstart, jobid)  # Threadsafe
+        # Main experiment
+        params, predictedstates, test_tk = nothing, nothing, nothing  # Define in outer scope
+        try
+            params, predictedstates, xtest_tk = experiment(config)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         end
         lock(config["resultlock"])
         # Writing the results
         try
-            predictedstates !== nothing ? onestep_mse = simulationerror(config["xresult_test"], predictedstates) : onestep_mse = Inf
-            push!(config["onestep_msevec"], onestep_mse)
-            push!(config["onestep_params"], [params...])
+            predictedstates !== nothing ? kstep_mse = simulationerror(test_tk, predictedstates) : kstep_mse = Inf
+            push!(config["kstep_mse"], kstep_mse)
+            push!(config["params"], params)
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         finally
             unlock(config["resultlock"])
         end
     end  # End of threaded program
-    checkpointdict = Dict("nprocessed" => config["nprocessed"], "onestep_msevec" => config["onestep_msevec"],
-                          "onestep_params" => config["onestep_params"])
-    checkpoint(config["EXPERIMENT_ID"]*"_FINAL", checkpointdict)
-    println("Best one step mean squared error: $(minimum(config["onestep_msevec"]))")
-end
-
-function _getparams(config)
-    lock(config["paramlock"])
+    # Load results if available
+    checkpoint = Dict()
     try
-        @assert config["nprocessed"] < length(config["paramtuples"])
-        params = config["paramtuples"][config["nprocessed"]+1]
-        config["nprocessed"] += 1
-        return true, params, config["nprocessed"]
-    catch e
-        # display(e)
-        return false, [], 0
-    finally
-        unlock(config["paramlock"])
+        checkpoint = loadcheckpoint("params")  # Fails if file not found -> Create new checkpoint dict
+    catch
     end
+    checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => jobid, "params"=> config["params"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
+    savecheckpoint("params", checkpoint)
+    println("Best k-step mean squared error: $(minimum(config["kstep_mse"]))")
 end
 
-function _checkpoint(config, tstart, jobid)
+function checkpoint_hpsearch(config, tstart, jobid)
     if jobid % 10 == 0
         println("Processing job $(jobid)/$(length(config["paramtuples"]))")
         Δt = time() - tstart
@@ -63,9 +56,14 @@ function _checkpoint(config, tstart, jobid)
         if jobid % 20 == 0
             lock(config["checkpointlock"])
             try
-                checkpointdict = Dict("nprocessed" => jobid, "onestep_msevec" => config["onestep_msevec"],
-                                    "onestep_params" => config["onestep_params"])
-                checkpoint(config["EXPERIMENT_ID"], checkpointdict)
+                # Load results if available
+                checkpoint = Dict()
+                try
+                    checkpoint = loadcheckpoint("params")  # Fails if file not found -> Create new checkpoint dict
+                catch
+                end
+                checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => jobid, "params"=> config["params"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
+                savecheckpoint("params", checkpoint)
             catch
             finally
                 unlock(config["checkpointlock"])

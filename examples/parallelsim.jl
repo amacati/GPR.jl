@@ -1,10 +1,6 @@
-using ConstrainedDynamics: Mechanism, Storage
-using Suppressor
-
-
 function parallelsim(experiment, config)
     tstart = time()
-    for jobid in config["nprocessed"]+1:config["nruns"]  # Threads.@threads 
+    Threads.@threads for jobid in config["nprocessed"]+1:config["nruns"]  # Threads.@threads 
         # Increment nprocessed (threadsafe)
         lock(config["paramlock"])
         try
@@ -16,7 +12,7 @@ function parallelsim(experiment, config)
             unlock(config["paramlock"])
         end
         params = config["params"]
-        _checkpoint(config, tstart, jobid)  # Threadsafe
+        checkpoint_sim(config, tstart, jobid)  # Threadsafe
         # Main experiment
         predictedstates = nothing  # Define in outer scope
         xresult_test = nothing
@@ -29,8 +25,8 @@ function parallelsim(experiment, config)
         lock(config["resultlock"])
         # Writing the results
         try
-            predictedstates !== nothing ? onestep_mse = simulationerror(xresult_test, predictedstates) : onestep_mse = nothing
-            push!(config["onestep_msevec"], onestep_mse)
+            predictedstates !== nothing ? kstep_mse = simulationerror(xresult_test, predictedstates) : kstep_mse = nothing
+            push!(config["kstep_mse"], kstep_mse)
         catch e
             display(e)
             throw(e)
@@ -38,12 +34,17 @@ function parallelsim(experiment, config)
             unlock(config["resultlock"])
         end
     end  # End of threaded program
-    checkpointdict = Dict("nprocessed" => config["nprocessed"], "onestep_msevec" => config["onestep_msevec"])
-    checkpoint(config["EXPERIMENT_ID"]*"_FINAL", checkpointdict)
-    println("Best one step mean squared error: $(minimum(config["onestep_msevec"]))")
+    results = Dict()
+    try
+        results = loadcheckpoint("noisy_final")  # Fails if file not found -> Create new results dict
+    catch
+    end
+    results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"])
+    savecheckpoint("noisy_final", results)
+    println("Best k-step mean squared error: $(minimum(config["kstep_mse"]))")
 end
 
-function _checkpoint(config, tstart, jobid)
+function checkpoint_sim(config, tstart, jobid)
     if jobid % 10 == 0
         println("Processing job $(jobid)/$(config["nruns"])")
         Δt = time() - tstart
@@ -55,8 +56,14 @@ function _checkpoint(config, tstart, jobid)
         if jobid % 20 == 0
             lock(config["checkpointlock"])
             try
-                checkpointdict = Dict("nprocessed" => jobid, "onestep_msevec" => config["onestep_msevec"])
-                checkpoint(config["EXPERIMENT_ID"], checkpointdict)
+                # Load results if available
+                checkpoint = Dict()
+                try
+                    checkpoint = loadcheckpoint("noisy")  # Fails if file not found -> Create new checkpoint dict
+                catch
+                end
+                checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => jobid, "kstep_mse" => config["kstep_mse"])  # Append to results if any
+                savecheckpoint("noisy", checkpoint)
             catch
             finally
                 unlock(config["checkpointlock"])

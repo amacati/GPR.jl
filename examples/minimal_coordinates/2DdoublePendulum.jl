@@ -7,6 +7,9 @@ using LineSearches
 using Statistics
 
 include(joinpath("..", "utils.jl"))
+# TODO: REMOVE
+include(joinpath("..", "dataset.jl"))
+include(joinpath("..", "generatedata.jl"))
 
 
 function experimentP2Min(config, params)
@@ -110,6 +113,7 @@ function experimentNoisyP2Min(config, params)
 end
 
 function simulation(config, params)
+    # params = [1.1762814437505233, 29.533410088995723, 75.16325297865855, 24.231256821154147, 14.428238673265541]
     l2 = sqrt(2) / 2  # Length param of the second pendulum link
     mechanism = deepcopy(config["mechanism"])
     storage = Storage{Float64}(300, length(mechanism.bodies))
@@ -145,6 +149,3 @@ function simulation(config, params)
     end
     return storage
 end
-
-# storage = simulation(config, params)
-# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")
