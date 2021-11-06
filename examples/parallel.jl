@@ -1,6 +1,6 @@
 include("utils.jl")
 
-function checkpointgeneric(etype, config, jobid, checkpointcallback)
+function checkpointgeneric(etype, config, jobid, checkpointcallback!)
     if jobid % 50 == 0
         println("Processing job $(jobid)/$(config["nruns"])")
         lock(config["checkpointlock"])
@@ -10,7 +10,7 @@ function checkpointgeneric(etype, config, jobid, checkpointcallback)
                 checkpoint = loadcheckpoint(etype)  # Fails if file not found -> Create new checkpoint dict
             catch
             end
-            checkpointcallback(checkpoint, config)
+            checkpointcallback!(checkpoint, config)
             savecheckpoint(etype, checkpoint)
         catch e
             throw(e)
@@ -20,7 +20,7 @@ function checkpointgeneric(etype, config, jobid, checkpointcallback)
     end
 end
 
-function parallelrun(etype, experiment, config, checkpointcallback::Function, resultcallback::Function, finalcallback::Function)
+function parallelrun(etype, experiment, config, checkpointcallback!::Function, resultcallback!::Function, finalcallback!::Function)
     Threads.@threads for jobid in config["nprocessed"]+1:config["nruns"] 
         # Increment nprocessed (threadsafe)
         lock(config["paramlock"])
@@ -43,14 +43,14 @@ function parallelrun(etype, experiment, config, checkpointcallback::Function, re
         lock(config["resultlock"])
         # Writing the results
         try
-            resultcallback(result, config)
+            resultcallback!(result, config)
         catch e
             display(e)
             # throw(e)
         finally
             unlock(config["resultlock"])
         end
-        checkpointgeneric(etype, config, jobid, checkpointcallback)  # Threadsafe
+        checkpointgeneric(etype, config, jobid, checkpointcallback!)  # Threadsafe
     end  # End of threaded program
     results = Dict()
     try
@@ -58,7 +58,7 @@ function parallelrun(etype, experiment, config, checkpointcallback::Function, re
     catch
 
     end
-    finalcallback(results, config)
+    finalcallback!(results, config)
     savecheckpoint(etype*"_final", results)
     println("Parallel run finished successfully.")
 end
@@ -66,37 +66,37 @@ end
 function parallelsim(experiment, config)
     etype = "noisy"
 
-    function checkpointcallback(checkpoint, config)
+    function checkpointcallback!(checkpoint, config)
         checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
     end
         
-    function resultcallback(result, config)
+    function resultcallback!(result, config)
         result[1] !== nothing ? kstep_mse = simulationerror(result[2], result[1]) : kstep_mse = nothing
         push!(config["kstep_mse"], kstep_mse)
     end
 
-    function finalcallback(results, config)    
+    function finalcallback!(results, config)    
         results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"])
     end
-    parallelrun(etype, experiment, config, checkpointcallback, resultcallback, finalcallback)
+    parallelrun(etype, experiment, config, checkpointcallback!, resultcallback!, finalcallback!)
 end
 
 function parallelsearch(experiment, config)
     etype = "params"
 
-    function checkpointcallback(checkpoint, config)
+    function checkpointcallback!(checkpoint, config)
         checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "params"=> config["params"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
     end
         
-    function resultcallback(result, config)
+    function resultcallback!(result, config)
         result[1] !== nothing ? kstep_mse = simulationerror(result[2], result[1]) : kstep_mse = Inf
         push!(config["kstep_mse"], kstep_mse)
         push!(config["params"], result[3])
     end
 
-    function finalcallback(results, config)    
+    function finalcallback!(results, config)    
         results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "params" => config["params"], "kstep_mse" => config["kstep_mse"])
     end
 
-    parallelrun(etype, experiment, config, checkpointcallback, resultcallback, finalcallback)
+    parallelrun(etype, experiment, config, checkpointcallback!, resultcallback!, finalcallback!)
 end

@@ -130,14 +130,14 @@ end
 config = Dict("nruns" => 100,
               "Δtsim" => 0.001,
               "ntestsets" => 5,
-              "testsamples" => 5,
-              "simsteps" => 1)
+              "testsamples" => 1000,
+              "simsteps" => 20)
 
-for nsamples in [2] # ], 4, 8, 16, 32, 64, 128, 256, 512]
+for nsamples in [2, 4, 8, 16, 32, 64, 128, 256, 512]
     hyperparametersearchP1Max(config, nsamples)
-    # hyperparametersearchP2Max(config, nsamples)
-    # hyperparametersearchCPMax(config, nsamples)
-    # hyperparametersearchP1Min(config, nsamples)
-    # hyperparametersearchP2Min(config, nsamples)
-    # hyperparametersearchCPMin(config, nsamples)
+    hyperparametersearchP2Max(config, nsamples)
+    hyperparametersearchCPMax(config, nsamples)
+    hyperparametersearchP1Min(config, nsamples)
+    hyperparametersearchP2Min(config, nsamples)
+    hyperparametersearchCPMin(config, nsamples)
 end
