@@ -138,7 +138,12 @@ function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Ve
 end
 
 function savecheckpoint(experimentid::String, checkpointdict::Dict)
-    open(joinpath(dirname(@__FILE__), "data", experimentid*"_checkpoint.json"),"w") do f
+    path = joinpath(dirname(@__FILE__), "data", experimentid*"_checkpoint.json")
+    if !Base.Filesystem.isfile(path)
+        Base.Filesystem.mkpath(dirname(path))
+        Base.Filesystem.touch(path)
+    end
+    open(path, "w") do f
         JSON.print(f, checkpointdict)
     end
 end

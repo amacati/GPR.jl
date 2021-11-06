@@ -1,3 +1,5 @@
+include("utils.jl")
+
 function checkpointgeneric(etype, config, jobid, checkpointcallback)
     if jobid % 50 == 0
         println("Processing job $(jobid)/$(config["nruns"])")
@@ -10,7 +12,8 @@ function checkpointgeneric(etype, config, jobid, checkpointcallback)
             end
             checkpointcallback(checkpoint, config)
             savecheckpoint(etype, checkpoint)
-        catch
+        catch e
+            throw(e)
         finally
             unlock(config["checkpointlock"])
         end
@@ -24,12 +27,11 @@ function parallelrun(etype, experiment, config, checkpointcallback::Function, re
         try
             @assert config["nprocessed"] < config["nruns"]
             config["nprocessed"] += 1
-        catch e
+        catch
             continue
         finally
             unlock(config["paramlock"])
         end
-        checkpointgeneric(etype, config, jobid, checkpointcallback)  # Threadsafe
         # Main experiment
         result = nothing  # Define in outer scope
         try
@@ -48,11 +50,13 @@ function parallelrun(etype, experiment, config, checkpointcallback::Function, re
         finally
             unlock(config["resultlock"])
         end
+        checkpointgeneric(etype, config, jobid, checkpointcallback)  # Threadsafe
     end  # End of threaded program
     results = Dict()
     try
         results = loadcheckpoint(etype*"_final")  # Fails if file not found -> Create new results dict
     catch
+
     end
     finalcallback(results, config)
     savecheckpoint(etype*"_final", results)
@@ -80,7 +84,7 @@ end
 function parallelsearch(experiment, config)
     etype = "params"
 
-    function checkpointcallback(config)
+    function checkpointcallback(checkpoint, config)
         checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "params"=> config["params"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
     end
         

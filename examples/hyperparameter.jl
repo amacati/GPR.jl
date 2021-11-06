@@ -61,7 +61,7 @@ function hyperparametersearchP2Max(config, nsamples, _loadcheckpoint=false)
     EXPERIMENT_ID = "P2_MAX"*string(nsamples)
     dataset = Dataset()  # Dataset that is shared among processes to save time
     for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
-        storage, _, _ = doublependulum2D(Δt=settings["Δtsim"], θstart=[θ1, θ2])
+        storage, _, _ = doublependulum2D(Δt=config["Δtsim"], θstart=[θ1, θ2])
         dataset += storage
     end
     mechanism = doublependulum2D(Δt=0.01, θstart=[0, 0])[2]  # Reset Δt to 0.01 in mechanism
@@ -130,14 +130,14 @@ end
 config = Dict("nruns" => 100,
               "Δtsim" => 0.001,
               "ntestsets" => 5,
-              "testsamples" => 1000,
-              "simsteps" => 20)
+              "testsamples" => 5,
+              "simsteps" => 1)
 
-for nsamples in [2, 4, 8, 16, 32, 64, 128, 256, 512]
-    hyperparametersearchP1Max(settings, nsamples)
-    hyperparametersearchP2Max(settings, nsamples)
-    hyperparametersearchCPMax(settings, nsamples)
-    hyperparametersearchP1Min(settings, nsamples)
-    hyperparametersearchP2Min(settings, nsamples)
-    hyperparametersearchCPMin(settings, nsamples)
+for nsamples in [2] # ], 4, 8, 16, 32, 64, 128, 256, 512]
+    hyperparametersearchP1Max(config, nsamples)
+    # hyperparametersearchP2Max(config, nsamples)
+    # hyperparametersearchCPMax(config, nsamples)
+    # hyperparametersearchP1Min(config, nsamples)
+    # hyperparametersearchP2Min(config, nsamples)
+    # hyperparametersearchCPMin(config, nsamples)
 end
