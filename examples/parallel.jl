@@ -29,15 +29,14 @@ function parallelrun(etype, experiment, config, checkpointcallback::Function, re
         finally
             unlock(config["paramlock"])
         end
-        params = config["params"]
         checkpointgeneric(etype, config, jobid, checkpointcallback)  # Threadsafe
         # Main experiment
         result = nothing  # Define in outer scope
         try
-            result = experiment(config, params)  # GaussianProcesses.optimize! spams exceptions
+            result = experiment(config)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         end
         lock(config["resultlock"])
         # Writing the results
@@ -45,7 +44,7 @@ function parallelrun(etype, experiment, config, checkpointcallback::Function, re
             resultcallback(result, config)
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         finally
             unlock(config["resultlock"])
         end

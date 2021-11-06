@@ -12,13 +12,36 @@ include(joinpath("..", "dataset.jl"))
 include(joinpath("..", "generatedata.jl"))
 
 
-function experimentP2Min(config, params)
+function experimentP2Min(config)
     mechanism = deepcopy(config["mechanism"])
+    l1, l2 = mechanism.bodies[1].shape.xyz[3], mechanism.bodies[2].shape.xyz[3]
+    # Sample from dataset
+    dataset = config["dataset"]
+    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
+    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
+    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
+    xtrain_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t0]
+    xtrain_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t1]
+    xtrain_t0 = reduce(hcat, xtrain_t0)
+    yω1 = [s[2] for s in xtrain_t1]
+    yω2 = [s[4] for s in xtrain_t1]
+    ytrain = [yω1, yω2]
+    xtest_t0, xtest_t1, xtest_tk = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, 
+                                                 pseudorandom = true, exclude = trainsets, stepsahead=[0,1,config["simsteps"]+1])
+    xtest_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t0]
+    xtest_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t1]
+    # intentionally not converting xtest_tk since final comparison is done in maximal coordinates
+
+    stdx = std(xtrain_t0, dims=2)
+    stdx[stdx .== 0] .= 1000
+    params = [1.1, (50 ./stdx)...]
+    params = params .+ (5rand(length(params)) .- 0.999) .* params
+
     predictedstates = Vector{Vector{Float64}}()
     gps = Vector()
-    for yi in config["y_train"]
+    for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(config["x_train"], yi, MeanZero(), kernel)
+        gp = GP(xtrain_t0, yi, MeanZero(), kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
@@ -27,23 +50,25 @@ function experimentP2Min(config, params)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    l2 = sqrt(2) / 2
-    for i in 1:length(config["x_test"])
-        θ1old, ω1old, θ2old, ω2old = config["x_test"][i]
-        θ1curr, _, θ2curr, _ = config["xnext_test"][i]
-        ω1curr, ω2curr = predict_velocities(gps, reshape([θ1old, ω1old, θ2old, ω2old], :, 1))
-        θ1new = θ1curr + ω1curr*mechanism.Δt  # ω1*Δt
-        θ2new = θ2curr + ω2curr*mechanism.Δt  # ω2*Δt
-        q1, q2 = UnitQuaternion(RotX(θ1new)), UnitQuaternion(RotX(θ1new + θ2new))
+    for i in 1:length(xtest_t0)
+        θ1old, ω1old, θ2old, ω2old = xtest_t0[i]
+        θ1curr, _, θ2curr, _ = xtest_t1[i]
+        for _ in 1:config["simsteps"]
+            ω1curr, ω2curr = predict_velocities(gps, reshape([θ1old, ω1old, θ2old, ω2old], :, 1))
+            θ1old, ω1old, θ2old, ω2old = θ1curr, ω1curr, θ2curr, ω2curr
+            θ1curr = θ1curr + ω1curr*mechanism.Δt
+            θ2curr = θ2curr + ω2curr*mechanism.Δt
+        end
+        q1, q2 = UnitQuaternion(RotX(θ1curr)), UnitQuaternion(RotX(θ1curr + θ2curr))
         vq1, vq2 = [q1.w, q1.x, q1.y, q1.z], [q2.w, q2.x, q2.y, q2.z]
-        cstates = [0, 0.5sin(θ1new), -0.5cos(θ1new), vq1..., zeros(6)...,
-                   0, sin(θ1new) + 0.5l2*sin(θ1new+θ2new), -cos(θ1new) - 0.5l2*cos(θ1new + θ2new), vq2..., zeros(6)...]
-        push!(predictedstates, cstates)
+        cstate = [0, 0.5l1*sin(θ1curr), -0.5l1*cos(θ1curr), vq1..., zeros(6)...,
+                   0, l1*sin(θ1curr) + 0.5l2*sin(θ1curr+θ2curr), -l1*cos(θ1curr) - 0.5l2*cos(θ1curr + θ2curr), vq2..., zeros(6)...]
+        push!(predictedstates, cstate)
     end
-    return predictedstates
+    return predictedstates, xtest_tk, params
 end
 
-function experimentNoisyP2Min(config, params)
+function experimentNoisyP2Min(config)
     # Generate Dataset
     Δtsim = 0.001
     ntestsets = 5
@@ -86,6 +111,7 @@ function experimentNoisyP2Min(config, params)
 
     predictedstates = Vector{Vector{Float64}}()
     gps = Vector()
+    params = config["params"]
     for yi in y_train
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(x_train, yi, MeanZero(), kernel)

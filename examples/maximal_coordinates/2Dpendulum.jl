@@ -9,7 +9,7 @@ using Statistics
 include(joinpath("..", "utils.jl"))
 
 
-function experimentP1Max(config, _...)  # Placeholder arguments necessary to be called correctly by parallelrun
+function experimentP1Max(config)
     mechanism = deepcopy(config["mechanism"])
     # Sample from dataset
     dataset = config["dataset"]
@@ -57,7 +57,7 @@ function experimentP1Max(config, _...)  # Placeholder arguments necessary to be 
     return predictedstates, xtest_tk, params
 end
 
-function experimentNoisyP1Max(config, params)
+function experimentNoisyP1Max(config)
     # Generate Dataset
     Δtsim = 0.001
     ntestsets = 5
@@ -98,6 +98,7 @@ function experimentNoisyP1Max(config, params)
     xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = Δtsim, random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
 
     predictedstates = Vector{Vector{Float64}}()
+    params = config["params"]
     gps = Vector()
     for yi in y_train
         kernel = SEArd(log.(params[2:end]), log(params[1]))
