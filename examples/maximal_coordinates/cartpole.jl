@@ -59,22 +59,20 @@ function experimentCPMax(config)
 end
 
 function experimentNoisyCPMax(config)
-    # Generate Dataset
-    Δtsim = 0.001
-    ntestsets = 5
     dataset = Dataset()
     Σ = config["Σ"]
     ΔJ = [SMatrix{3,3,Float64}(Σ["J"]randn(9)...), SMatrix{3,3,Float64}(Σ["J"]randn(9)...)]
     m = abs.(ones(2) .+ Σ["m"]randn(2))
     for θstart in -π:1:π, vstart in -1:1:1, ωstart in -1:1:1
-        storage, _, _ = cartpole(Δt=Δtsim, θstart=θstart, vstart=vstart, ωstart=ωstart, m = m, ΔJ = ΔJ)
+        storage, _, _ = cartpole(Δt=config["Δtsim"], θstart=θstart, vstart=vstart, ωstart=ωstart,
+                                 m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])
         dataset += storage
     end
-    mechanism = cartpole(Δt=0.01, m = m, ΔJ = ΔJ)[2]  # Reset Δt to 0.01 in mechanism
+    mechanism = cartpole(Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     l = mechanism.bodies[2].shape.rh[2]
-    testsets = StatsBase.sample(1:length(dataset.storages), ntestsets, replace=false)
+    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
     trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-    xtest_t0true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = Δtsim, random = true,
+    xtest_t0true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true,
                                                         pseudorandom = true, exclude = trainsets, stepsahead=[0,config["simsteps"]+1]))
     # Add noise to the dataset
     for storage in dataset.storages
@@ -89,16 +87,16 @@ function experimentNoisyCPMax(config)
             storage.v[2][t] = storage.v[1][t] + [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]
         end
     end
-
     # Create train and testsets
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = Δtsim, random = true, exclude = testsets, stepsahead = 0:1)
+    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
     xtrain_t0 = reduce(hcat, xtrain_t0)
     yv12 = [s[9] for s in xtrain_t1]
     yv22 = [s[22] for s in xtrain_t1]
     yv23 = [s[23] for s in xtrain_t1]
     yω21 = [s[24] for s in xtrain_t1]
     y_train = [yv12, yv22, yv23, yω21]
-    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = Δtsim, random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
+    
+    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
@@ -106,7 +104,7 @@ function experimentNoisyCPMax(config)
     for yi in y_train
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(xtrain_t0, yi, MeanZero(), kernel)
-        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
     
@@ -165,6 +163,3 @@ function simulation(config, params)
     end
     return storage
 end
-
-# storage, mechanism, _ = cartpole(θstart=π, vstart=-0.2, ωstart=0.2)
-# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")

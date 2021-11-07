@@ -58,22 +58,19 @@ function experimentP1Max(config)
 end
 
 function experimentNoisyP1Max(config)
-    # Generate Dataset
-    Δtsim = 0.001
-    ntestsets = 5
     dataset = Dataset()
     Σ = config["Σ"]
     ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
     m = abs(1. + Σ["m"]randn())
     for θ in -π/2:0.1:π/2
-        storage, _, _ = simplependulum2D(Δt=Δtsim, θstart=θ, m = m, ΔJ = ΔJ)
+        storage, _, _ = simplependulum2D(Δt=config["Δtsim"], θstart=θ, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])
         dataset += storage
     end
-    mechanism = simplependulum2D(Δt=0.01, m = m, ΔJ = ΔJ)[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    mechanism = simplependulum2D(Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.rh[2]
-    testsets = StatsBase.sample(1:length(dataset.storages), ntestsets, replace=false)
+    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
     trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-    xtest_t0true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = Δtsim, random = true,
+    xtest_t0true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true,
                                                         pseudorandom = true, exclude = trainsets, stepsahead=[0,config["simsteps"]+1]))
 
     # Add noise to the dataset
@@ -89,13 +86,13 @@ function experimentNoisyP1Max(config)
     end
 
     # Create train and testsets
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = Δtsim, random = true, exclude = testsets, stepsahead = 0:1)
+    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
     xtrain_t0 = reduce(hcat, xtrain_t0)
     yv2 = [s[9] for s in xtrain_t1]
     yv3 = [s[10] for s in xtrain_t1]
     yω = [s[11] for s in xtrain_t1]
     y_train = [yv2, yv3, yω]
-    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = Δtsim, random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
+    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
@@ -103,7 +100,7 @@ function experimentNoisyP1Max(config)
     for yi in y_train
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(xtrain_t0, yi, MeanZero(), kernel)
-        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
     
@@ -162,6 +159,3 @@ function simulation(config, params)
     end
     return storage
 end
-
-# storage = simulation(config, params)
-# ConstrainedDynamicsVis.visualize(mechanism, storage; showframes = true, env = "editor")

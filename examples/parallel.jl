@@ -13,7 +13,7 @@ function checkpointgeneric(etype, config, jobid, checkpointcallback!)
             checkpointcallback!(checkpoint, config)
             savecheckpoint(etype, checkpoint)
         catch e
-            throw(e)
+            # throw(e)
         finally
             unlock(config["checkpointlock"])
         end
