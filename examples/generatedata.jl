@@ -49,6 +49,7 @@ function cleardata!(datacollection::Tuple; ϵ = 1e-2)
 end
 
 function max2mincoordinates(cstate::Vector{Float64}, mechanism)
+    oldstates = getstates(mechanism)
     states = tostates(cstate)
     resetMechanism!(mechanism, states)
     cstate_min = Vector{Float64}()
@@ -56,20 +57,32 @@ function max2mincoordinates(cstate::Vector{Float64}, mechanism)
         append!(cstate_min, ConstrainedDynamics.minimalCoordinates(mechanism, eqc))
         append!(cstate_min, ConstrainedDynamics.minimalVelocities(mechanism, eqc))
     end
+    for (id, state) in enumerate(oldstates)
+        mechanism.bodies[id].state = state  # Reset mechanism to default values
+    end
     return cstate_min
 end
 
-function min2maxcoordinates(data, mechanism)
-    maxdata = Vector{Vector{Float64}}()
+function min2maxcoordinates(cstate::AbstractArray, mechanism::Mechanism)
+    oldstates = getstates(mechanism)
+    maxdata = Vector{Float64}(undef, 13*length(mechanism.bodies))
     N = 0
-    for minstates in data
-        for eqc in mechanism.eqconstraints
-            Nc = length(eqc.constraints)
-            ConstrainedDynamics.setPosition!(mechanism, eqc, [minstates[N+1:N+Nc]])
-            ConstrainedDynamics.setVelocity!(mechanism, eqc, [minstates[N+Nc+1:N+2Nc]])
-            N += 2Nc
-        end
-        push!(maxdata, SVector(getcstate(mechanism)...))
+    for eqc in mechanism.eqconstraints
+        Nc = 6 - sum([length(c) for c in eqc.constraints])
+        ConstrainedDynamics.setPosition!(mechanism, eqc, SVector(cstate[N+1:N+Nc]...))
+        ConstrainedDynamics.setVelocity!(mechanism, eqc, SVector(cstate[N+Nc+1:N+2Nc]...))
+        N += 2Nc
+    end
+    for (id, body) in enumerate(mechanism.bodies)
+        offset = (id-1)*13
+        maxdata[1+offset:3+offset] = body.state.xc
+        q = body.state.qc
+        maxdata[4+offset:7+offset] = [q.w, q.x, q.y, q.z]
+        maxdata[8+offset:10+offset] = body.state.vc
+        maxdata[11+offset:13+offset] = body.state.ωc
+    end
+    for (id, state) in enumerate(oldstates)
+        mechanism.bodies[id].state = state  # Reset mechanism to default values
     end
     return maxdata
 end

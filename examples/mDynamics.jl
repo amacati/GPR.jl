@@ -3,14 +3,16 @@ using StaticArrays
 using ConstrainedDynamics
 
 include("utils.jl")
+include("generatedata.jl")
 
 
 struct MeanDynamics <: GaussianProcesses.Mean 
     mechanism::Mechanism
     bodyID::Integer
     entryID::Integer
+    coords::String
 
-    MeanDynamics(mechanism::Mechanism, bodyID::Integer, entryID::Integer) = new(mechanism, bodyID, entryID)
+    MeanDynamics(mechanism::Mechanism, bodyID::Integer, entryID::Integer; coords::String = "max") = new(mechanism, bodyID, entryID, coords)
 end
 
 GaussianProcesses.num_params(::MeanDynamics) = 0
@@ -19,11 +21,13 @@ GaussianProcesses.get_params(::MeanDynamics) = Float64[]
 GaussianProcesses.get_param_names(::MeanDynamics) = Symbol[]
 
 function GaussianProcesses.set_params!(::MeanDynamics, hyp::AbstractVector)
-    length(hyp) == 0 || throw(ArgumentError("Zero mean function has no parameters"))
+    length(hyp) == 0 || throw(ArgumentError("Mean dynamics function has no parameters"))
 end
 
 function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
-    oldstates = getstates(mDynamics.mechanism)
+    mechanism = mDynamics.mechanism
+    oldstates = getstates(mechanism)
+    mDynamics.coords == "min" && (x = min2maxcoordinates(x, mechanism))
     setstates!(mechanism, tovstate(x))
     newton!(mechanism)
     if mDynamics.entryID < 4  # v -> 1 2 3, ω -> 4, 5, 6

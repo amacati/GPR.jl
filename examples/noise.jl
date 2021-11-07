@@ -19,8 +19,8 @@ function loadcheckpoint_or_defaults(_loadcheckpoint)
     return nprocessed, kstep_mse
 end
 
-function expand_config(EXPERIMENT_ID, nruns, Δtsim, nsamples, ntestsets, testsamples, 
-                       simsteps, _loadcheckpoint)
+function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
+    EXPERIMENT_ID = EXPERIMENT_ID*string(nsamples)
     nprocessed, kstep_mse = loadcheckpoint_or_defaults(_loadcheckpoint)
     params = Vector{Float64}()  # declare in outer scope
     open(joinpath(dirname(@__FILE__), "config", "config.json"),"r") do f
@@ -30,76 +30,39 @@ function expand_config(EXPERIMENT_ID, nruns, Δtsim, nsamples, ntestsets, testsa
     config = Dict("EXPERIMENT_ID" => EXPERIMENT_ID,
                   "Σ" => Σ,
                   "params" => params,
-                  "nruns" => nruns,
-                  "Δtsim" => Δtsim,
+                  "nruns" => config["nruns"],
+                  "Δtsim" => config["Δtsim"],
                   "nsamples" => nsamples,
-                  "ntestsets" => ntestsets,
-                  "testsamples" => testsamples,
-                  "simsteps" => simsteps,
+                  "ntestsets" => config["ntestsets"],
+                  "testsamples" => config["testsamples"],
+                  "simsteps" => config["simsteps"],
                   "nprocessed" => nprocessed,
-                  "testsamples" => 1000,
                   "kstep_mse" => kstep_mse,
                   "mechanismlock" => ReentrantLock(),
                   "paramlock" => ReentrantLock(),
                   "resultlock" => ReentrantLock(),
                   "checkpointlock" => ReentrantLock())
-    return config
+    return deepcopy(config)
 end
 
-function parallelsimP1Max(config, nsamples, _loadcheckpoint=false)
-    EXPERIMENT_ID = "P1_MAX"*string(nsamples)
-    config = expand_config(EXPERIMENT_ID, config["nruns"], config["Δtsim"], nsamples, config["ntestsets"],
-                           config["testsamples"], config["simsteps"], _loadcheckpoint)
-    parallelsim(experimentNoisyP1Max, config)
-end
-
-function parallelsimP2Max(config, nsamples, _loadcheckpoint=false)
-    EXPERIMENT_ID = "P2_MAX"*string(nsamples)
-    config = expand_config(EXPERIMENT_ID, config["nruns"], config["Δtsim"], nsamples, config["ntestsets"],
-                           config["testsamples"], config["simsteps"], _loadcheckpoint)
-    parallelsim(experimentNoisyP2Max, config)
-end
-
-function parallelsimCPMax(config, nsamples, _loadcheckpoint=false)
-    EXPERIMENT_ID = "CP_MAX"*string(nsamples)
-    config = expand_config(EXPERIMENT_ID, config["nruns"], config["Δtsim"], nsamples, config["ntestsets"],
-                           config["testsamples"], config["simsteps"], _loadcheckpoint)
-    parallelsim(experimentNoisyCPMax, config)
-end
-
-function parallelsimP1Min(config, nsamples, _loadcheckpoint=false)
-    EXPERIMENT_ID = "P1_MIN"*string(nsamples)
-    config = expand_config(EXPERIMENT_ID, config["nruns"], config["Δtsim"], nsamples, config["ntestsets"],
-                           config["testsamples"], config["simsteps"], _loadcheckpoint)
-    parallelsim(experimentNoisyP1Min, config)
-end
-
-function parallelsimP2Min(config, nsamples, _loadcheckpoint=false)
-    EXPERIMENT_ID = "P2_MIN"*string(nsamples)
-    config = expand_config(EXPERIMENT_ID, config["nruns"], config["Δtsim"], nsamples, config["ntestsets"],
-                           config["testsamples"], config["simsteps"], _loadcheckpoint)
-    parallelsim(experimentNoisyP2Min, config)
-end
-
-function parallelsimCPMin(config, nsamples, _loadcheckpoint=false)
-    EXPERIMENT_ID = "CP_MIN"*string(nsamples)
-    config = expand_config(EXPERIMENT_ID, config["nruns"], config["Δtsim"], nsamples, config["ntestsets"],
-                           config["testsamples"], config["simsteps"], _loadcheckpoint)
-    parallelsim(experimentNoisyCPMin, config)
-end
-
-config = Dict("nruns" => 100,
+config = Dict("nruns" => 2,
               "Δtsim" => 0.001,
               "ntestsets" => 5,
-              "testsamples" => 1000,
-              "simsteps" => 20)
-              
-for nsamples in [2, 4, 8, 16, 32, 64, 128, 256, 512]
-    parallelsimP1Max(config, nsamples)
-    parallelsimP2Max(config, nsamples)
-    parallelsimCPMax(config, nsamples)
+              "testsamples" => 5,
+              "simsteps" => 1)
 
-    parallelsimP1Min(config, nsamples)
-    parallelsimP2Min(config, nsamples)
-    parallelsimCPMin(config, nsamples)
+for nsamples in [2, 4]  # , 8, 16, 32, 64, 128, 256, 512]
+    # parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
+    # parallelsim(experimentNoisyP2Max, expand_config("P2_MAX", nsamples, config))
+    # parallelsim(experimentNoisyCPMax, expand_config("CP_MAX", nsamples, config))
+    # parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
+    # parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
+    # parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
+
+    # parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config), md = true)
+    # parallelsim(experimentMeanDynamicsNoisyP2Max, expand_config("P2_MAX", nsamples, config), md = true)
+    # parallelsim(experimentMeanDynamicsNoisyCPMax, expand_config("CP_MAX", nsamples, config), md = true)
+    parallelsim(experimentMeanDynamicsNoisyP1Min, expand_config("P1_MIN", nsamples, config), md = true)
+    parallelsim(experimentMeanDynamicsNoisyP2Min, expand_config("P2_MIN", nsamples, config), md = true)
+    parallelsim(experimentMeanDynamicsNoisyCPMin, expand_config("CP_MIN", nsamples, config), md = true)
 end
