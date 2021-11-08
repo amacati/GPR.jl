@@ -99,7 +99,7 @@ function resetMechanism!(mechanism, states::Vector{<:ConstrainedDynamics.State})
     foreach(ConstrainedDynamics.setsolution!, mechanism.bodies)
 end
 
-function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism; newtonIter = 100, ϵ = 1e-10)
+function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism; newtonIter = 100, ϵ = 1e-10, regularizer = 0.)
     Ndims = sum([length(eqc) for eqc in mechanism.eqconstraints])  # Total dimensionality of constraints
     Nbodies = length(mechanism.bodies)
     F = zeros(Nbodies*6 + Ndims, Nbodies*6 + Ndims)  # 3 vel, 3 ω for each body -> 6
@@ -110,11 +110,13 @@ function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism;
     updateS!(sᵤ, vᵤ, ωᵤ)
     updateMechanism!(mechanism, s)
     updateF!(F, mechanism)
+    F += I*regularizer
     Gₓ = (@view F[1:Nbodies*6, 1+Nbodies*6:end])'
     f(s) = vcat(d(s, sᵤ, Gₓ, Nbodies), g(mechanism))
     oldΔs = zeros(MVector{6*Nbodies + Ndims})
     for _ in 1:newtonIter
         updateF!(F, mechanism, Gᵥonly=true)
+
         Δs = F\f(s)
         s -= 0.5 * Δs
         updateMechanism!(mechanism, s)

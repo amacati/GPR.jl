@@ -1,79 +1,75 @@
 using Plots
+using StatsPlots
+using Statistics
+using CategoricalArrays
 
 include("utils.jl")
 
 
 root = dirname(@__FILE__)
 
+checkpoint = loadcheckpoint("noisy_final")
 EXPERIMENT_IDs = Vector{String}()
-vnsamples = [2^i for i in 4:9]
-for etype in ["CP_MAX", "P1_MAX", "P2_MAX", "CP_MIN", "P1_MIN", "P2_MIN"], nsamples in vnsamples
-    push!(EXPERIMENT_IDs, etype*string(nsamples)*"_FINAL")
-end
+vnsamples = [2^i for i in 1:9]
 
-results = Dict(id => loadcheckpoint(id) for id in EXPERIMENT_IDs)
+function create_plot(kstep_mean, kstep_std, etype, abbrev, coords)
+    sx = repeat(["Max", "Min"], inner = length(vnsamples))
 
-function create_osa_plot(xvalues, error, etype, abbrev, coords)
-    plt = bar(1:length(xvalues), error, xticks = (1:length(xvalues), xvalues),
-    xlabel = "Training samples",
-    ylabel = "One Step Ahead forecast error", 
-    title = "$etype $coords coordinates OSA error")
+    nam = CategoricalArray(repeat([string(i) for i in vnsamples], outer = 2))
+    levels!(nam, [string(i) for i in vnsamples])
+    display(kstep_std)
+    plt = groupedbar(nam, kstep_mean, yerr = kstep_std, group = sx, 
+                     title = "$etype $coords coordinates OSA error", xlabel = "Training samples", 
+                     ylabel = "K steps ahead forecast error")
     png(plt, "$(abbrev)_error_$coords")
 end
 
 # Maximal coordinates
 # Cartpole
-error = Vector{Float64}()
+kstep_mean = Vector{Float64}()
+kstep_std = Vector{Float64}()
 for nsamples in vnsamples
-    onestep_msevec = results["CP_MAX"*string(nsamples)*"_FINAL"]["onestep_msevec"]
-    filter!(x -> x!==nothing, onestep_msevec)
-    min_mse = minimum(onestep_msevec)
-    push!(error, min_mse)
+    kstep_mse = checkpoint["CP_MAX"*string(nsamples)]["kstep_mse"]
+    filter!(x -> x!==nothing, kstep_mse)
+    push!(kstep_mean, mean(kstep_mse))
+    push!(kstep_std, std(kstep_mse))
 end
-create_osa_plot(vnsamples, error, "Cartpole", "cp", "maximal")
-
-error = Vector{Float64}()
 for nsamples in vnsamples
-    onestep_msevec = results["P1_MAX"*string(nsamples)*"_FINAL"]["onestep_msevec"]
-    filter!(x->x!==nothing, onestep_msevec)
-    min_mse = minimum(onestep_msevec)
-    push!(error, min_mse)
+    kstep_mse = checkpoint["CP_MIN"*string(nsamples)]["kstep_mse"]
+    filter!(x -> x!==nothing, kstep_mse)
+    push!(kstep_mean, mean(kstep_mse))
+    push!(kstep_std, std(kstep_mse))
 end
-create_osa_plot(vnsamples, error, "1 link pendulum", "p1", "maximal")
+create_plot(kstep_mean, kstep_std, "Cartpole", "cp", "maximal")
 
-
-error = Vector{Float64}()
+kstep_mean = Vector{Float64}()
+kstep_std = Vector{Float64}()
 for nsamples in vnsamples
-    onestep_msevec = results["P2_MAX"*string(nsamples)*"_FINAL"]["onestep_msevec"]
-    filter!(x->x!==nothing, onestep_msevec)
-    min_mse = minimum(onestep_msevec)
-    push!(error, min_mse)
+    kstep_mse = checkpoint["P1_MAX"*string(nsamples)]["kstep_mse"]
+    filter!(x -> x!==nothing, kstep_mse)
+    push!(kstep_mean, mean(kstep_mse))
+    push!(kstep_std, std(kstep_mse))
 end
-create_osa_plot(vnsamples, error, "2 link pendulum", "p2", "maximal")
-
-error = Vector{Float64}()
 for nsamples in vnsamples
-    onestep_msevec = results["CP_MIN"*string(nsamples)*"_FINAL"]["onestep_msevec"]
-    filter!(x->x!==nothing, onestep_msevec)
-    min_mse = minimum(onestep_msevec)
-    push!(error, min_mse)
+    kstep_mse = checkpoint["P1_MIN"*string(nsamples)]["kstep_mse"]
+    filter!(x -> x!==nothing, kstep_mse)
+    push!(kstep_mean, mean(kstep_mse))
+    push!(kstep_std, std(kstep_mse))
 end
-create_osa_plot(vnsamples, error, "Cartpole", "cp", "minimal")
+create_plot(kstep_mean, kstep_std, "1 Link pendulum", "p1", "maximal")
 
-error = Vector{Float64}()
+kstep_mean = Vector{Float64}()
+kstep_std = Vector{Float64}()
 for nsamples in vnsamples
-    onestep_msevec = results["P1_MIN"*string(nsamples)*"_FINAL"]["onestep_msevec"]
-    filter!(x->x!==nothing, onestep_msevec)
-    min_mse = minimum(onestep_msevec)
-    push!(error, min_mse)
+    kstep_mse = checkpoint["P2_MAX"*string(nsamples)]["kstep_mse"]
+    filter!(x -> x!==nothing, kstep_mse)
+    push!(kstep_mean, mean(kstep_mse))
+    push!(kstep_std, std(kstep_mse))
 end
-create_osa_plot(vnsamples, error, "1 link pendulum", "p1", "minimal")
-
-error = Vector{Float64}()
 for nsamples in vnsamples
-    onestep_msevec = results["P2_MIN"*string(nsamples)*"_FINAL"]["onestep_msevec"]
-    filter!(x->x!==nothing, onestep_msevec)
-    min_mse = minimum(onestep_msevec)
-    push!(error, min_mse)
+    kstep_mse = checkpoint["P2_MIN"*string(nsamples)]["kstep_mse"]
+    filter!(x -> x!==nothing, kstep_mse)
+    push!(kstep_mean, mean(kstep_mse))
+    push!(kstep_std, std(kstep_mse))
 end
-create_osa_plot(vnsamples, error, "2 link pendulum", "p2", "minimal")
+create_plot(kstep_mean, kstep_std, "2 link pendulum", "p2", "maximal")

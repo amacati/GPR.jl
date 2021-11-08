@@ -227,6 +227,7 @@ function fourbar(;Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,3,Floa
     qoff = UnitQuaternion(RotX(θstart[1]))
     Δq1 = q * qoff
     Δq2 = q
+
     if threadlock === nothing
         mech, origin, links = _fourbarmech(x, y, l, m, ΔJ, ex, vert11, vert12, Δt)
     else

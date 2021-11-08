@@ -134,7 +134,7 @@ function experimentNoisyCPMin(config)
         end
         q = UnitQuaternion(RotX(θcurr))
         vq = [q.w, q.x, q.y, q.z]
-        cstate = [0, xcurr, 1, zeros(11)..., 0.5l*sin(θcurr)+xcurr, -0.5l*cos(θcurr), vq..., zeros(6)...]
+        cstate = [0, xcurr, 0, 1, zeros(10)..., 0.5l*sin(θcurr)+xcurr, -0.5l*cos(θcurr), vq..., zeros(6)...]
         push!(predictedstates, cstate)
     end
     return predictedstates, xtest_tktrue

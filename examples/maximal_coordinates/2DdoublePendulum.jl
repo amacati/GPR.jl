@@ -103,13 +103,13 @@ function experimentNoisyP2Max(config)
     yv23 = [s[23] for s in xtrain_t1]
     yω11 = [s[11] for s in xtrain_t1]
     yω21 = [s[24] for s in xtrain_t1]
-    y_train = [yv12, yv13, yv22, yv23, yω11, yω21]
+    ytrain = [yv12, yv13, yv22, yv23, yω11, yω21]
     xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
     gps = Vector()
-    for yi in y_train
+    for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(xtrain_t0, yi, MeanZero(), kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
