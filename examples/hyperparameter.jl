@@ -1,14 +1,14 @@
 include("generatedata.jl")
 include("utils.jl")
 include("dataset.jl")
-include("maximal_coordinates/2Dpendulum.jl")
-include("maximal_coordinates/2DdoublePendulum.jl")
-include("maximal_coordinates/cartpole.jl")
-include("maximal_coordinates/fourbar.jl")
-include("minimal_coordinates/2Dpendulum.jl")
-include("minimal_coordinates/2DdoublePendulum.jl")
-include("minimal_coordinates/cartpole.jl")
-include("minimal_coordinates/fourbar.jl")
+include("maximal_coordinates/P1param.jl")
+include("maximal_coordinates/P2param.jl")
+include("maximal_coordinates/CPparam.jl")
+include("maximal_coordinates/FBparam.jl")
+include("minimal_coordinates/P1param.jl")
+include("minimal_coordinates/P2param.jl")
+include("minimal_coordinates/CPparam.jl")
+include("minimal_coordinates/FBparam.jl")
 include("parallel.jl")
 
 
@@ -118,7 +118,7 @@ function hyperparametersearchCPMin(config, nsamples, _loadcheckpoint=false)
     parallelsearch(experimentCPMin, config)
 end
 
-function hyperparametersearchFourbarMax(config, nsamples, _loadcheckpoint = false)
+function hyperparametersearchFBMax(config, nsamples, _loadcheckpoint = false)
     EXPERIMENT_ID = "FB_MAX"
     dataset = Dataset()
     for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
@@ -127,10 +127,10 @@ function hyperparametersearchFourbarMax(config, nsamples, _loadcheckpoint = fals
     end
     mechanism = fourbar(Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, dataset, nsamples, _loadcheckpoint)
-    parallelsearch(experimentFourbarMax, config)
+    parallelsearch(experimentFBMax, config)
 end
 
-function hyperparametersearchFourbarMin(config, nsamples, _loadcheckpoint = false)
+function hyperparametersearchFBMin(config, nsamples, _loadcheckpoint = false)
     EXPERIMENT_ID = "FB_MIN"
     dataset = Dataset()
     for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
@@ -139,7 +139,7 @@ function hyperparametersearchFourbarMin(config, nsamples, _loadcheckpoint = fals
     end
     mechanism = fourbar(Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, dataset, nsamples, _loadcheckpoint)
-    parallelsearch(experimentFourbarMin, config)
+    parallelsearch(experimentFBMin, config)
 end
 
 config = Dict("nruns" => 1,
@@ -155,6 +155,6 @@ for nsamples in [2] # , 4, 8, 16, 32, 64, 128, 256, 512]
     # hyperparametersearchP1Min(config, nsamples)
     # hyperparametersearchP2Min(config, nsamples)
     # hyperparametersearchCPMin(config, nsamples)
-    hyperparametersearchFourbarMax(config, nsamples)
-    hyperparametersearchFourbarMin(config, nsamples)
+    hyperparametersearchFBMax(config, nsamples)
+    hyperparametersearchFBMin(config, nsamples)
 end

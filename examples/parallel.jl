@@ -46,7 +46,7 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
             resultcallback!(result, config)
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         finally
             unlock(config["resultlock"])
         end
@@ -56,7 +56,6 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
     try
         results = loadcheckpoint(etype*"_final")  # Fails if file not found -> Create new results dict
     catch
-
     end
     finalcallback!(results, config)
     savecheckpoint(etype*"_final", results)
@@ -75,7 +74,7 @@ function parallelsim(experiment, config; md = false)
         push!(config["kstep_mse"], kstep_mse)
     end
 
-    function finalcallback!(results, config)    
+    function finalcallback!(results, config)
         results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"])
     end
     parallelrun(etype, experiment, config, checkpointcallback!, resultcallback!, finalcallback!)

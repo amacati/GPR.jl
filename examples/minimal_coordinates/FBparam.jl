@@ -6,11 +6,8 @@ using ConstrainedDynamics
 using LineSearches
 using Statistics
 
-include(joinpath("..", "dataset.jl"))
-include(joinpath("..", "generatedata.jl"))
 
-
-function experimentFourbarMin(config)
+function experimentFBMin(config)
     mechanism = deepcopy(config["mechanism"])
     l = mechanism.bodies[1].shape.xyz[3]
     # Sample from dataset
@@ -69,14 +66,6 @@ function experimentFourbarMin(config)
         push!(predictedstates, cstate)
     end
     return predictedstates, xtest_tk, params
-end
-
-function experimentNoisyFourbarMin()
-    
-end
-
-function experimentMeanDynamicsNoisyFourbarMin()
-    
 end
 
 function simulation()

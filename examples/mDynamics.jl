@@ -11,8 +11,13 @@ struct MeanDynamics <: GaussianProcesses.Mean
     bodyID::Integer
     entryID::Integer
     coords::String
+    tfmin2max::Union{Function, Nothing}
+    tfmax2min::Union{Function, Nothing}
 
-    MeanDynamics(mechanism::Mechanism, bodyID::Integer, entryID::Integer; coords::String = "max") = new(mechanism, bodyID, entryID, coords)
+    function MeanDynamics(mechanism::Mechanism, bodyID::Integer, entryID::Integer; coords::String = "max", 
+                          tfmin2max = nothing, tfmax2min = nothing)
+        new(mechanism, bodyID, entryID, coords, tfmin2max, tfmax2min)
+    end 
 end
 
 GaussianProcesses.num_params(::MeanDynamics) = 0
@@ -27,10 +32,13 @@ end
 function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
     mechanism = mDynamics.mechanism
     oldstates = getstates(mechanism)
-    mDynamics.coords == "min" && (x = min2maxcoordinates(x, mechanism))
+    mDynamics.coords == "min" && mDynamics.tfmin2max === nothing && (x = min2maxcoordinates(x, mechanism))
+    mDynamics.coords == "min" && mDynamics.tfmin2max !== nothing && (x = mDynamics.tfmin2max(x))
     setstates!(mechanism, tovstate(x))
     newton!(mechanism)
-    if mDynamics.entryID < 4  # v -> 1 2 3, ω -> 4, 5, 6
+    if mDynamics.coords == "min" && mDynamics.tfmax2min !== nothing
+        μ = tfmax2min(mechanism)
+    elseif mDynamics.entryID < 4  # v -> 1 2 3, ω -> 4, 5, 6
         μ = mechanism.bodies[mDynamics.bodyID].state.vsol[2][mDynamics.entryID]
     else
         μ = mechanism.bodies[mDynamics.bodyID].state.ωsol[2][mDynamics.entryID-3]
