@@ -41,7 +41,7 @@ function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
         params = JSON.parse(f)[EXPERIMENT_ID]
     end
     # Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2, "m" => 1e-1, "J" => 1e-2)
-    Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0, "m" => 0, "J" => 0)
+    # Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0, "m" => 0, "J" => 0)
     config = Dict("EXPERIMENT_ID" => EXPERIMENT_ID,
                   "Σ" => Σ,
                   "params" => params,
@@ -60,11 +60,13 @@ function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
     return deepcopy(config)
 end
 
-config = Dict("nruns" => 1,
+# "nruns" => 100, "Δtsim" => 0.001, "ntestsets" => 5, "testsamples" => 1000, "simsteps" => 20
+
+config = Dict("nruns" => 100,
               "Δtsim" => 0.001,
               "ntestsets" => 5,
-              "testsamples" => 5,
-              "simsteps" => 1)
+              "testsamples" => 1000,
+              "simsteps" => 20)
 
 for nsamples in [2]  #, 4 , 8, 16, 32, 64, 128, 256, 512]
     # parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
@@ -83,5 +85,5 @@ for nsamples in [2]  #, 4 , 8, 16, 32, 64, 128, 256, 512]
     # parallelsim(experimentMeanDynamicsNoisyP1Min, expand_config("P1_MIN", nsamples, config), md = true)
     # parallelsim(experimentMeanDynamicsNoisyP2Min, expand_config("P2_MIN", nsamples, config), md = true)
     # parallelsim(experimentMeanDynamicsNoisyCPMin, expand_config("CP_MIN", nsamples, config), md = true)
-    parallelsim(experimentMeanDynamicsNoisyFBMin, expand_config("FB_MIN", nsamples, config), md = true)
+    # parallelsim(experimentMeanDynamicsNoisyFBMin, expand_config("FB_MIN", nsamples, config), md = true)
 end

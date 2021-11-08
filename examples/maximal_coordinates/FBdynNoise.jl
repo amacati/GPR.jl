@@ -42,7 +42,7 @@ function experimentMeanDynamicsNoisyFBMax(config)
             storage.v[2][t] = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
             storage.v[3][t] = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
             storage.v[4][t] = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
-            storage.ω[2][t] = storage.ω[2][t]
+            storage.ω[2][t] = storage.ω[3][t]
             storage.ω[4][t] = storage.ω[1][t]
         end
     end
