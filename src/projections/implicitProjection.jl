@@ -1,9 +1,4 @@
-function updateF!(F::AbstractMatrix, mechanism; Gᵥonly = false)
-    Gᵥonly ? (_updateFv!(F, mechanism)) : (_updateF!(F, mechanism))
-end
-
-# Only update Gᵥ in [1 Gₓ; Gᵥ 0]
-function _updateFv!(F::AbstractMatrix, mechanism)
+function updateF!(F::AbstractMatrix, mechanism)
     N = length(mechanism.bodies)*6
     for eqc in mechanism.eqconstraints
         L = length(eqc)
@@ -15,27 +10,7 @@ function _updateFv!(F::AbstractMatrix, mechanism)
             Gᵥ = ConstrainedDynamics.∂g∂ʳvel(mechanism, eqc, id)
             offset = (id-1)*6
             F[N+1:N+L, 1+offset:6+offset] = Gᵥ
-        end
-        N += L  # Advance along first dimension
-    end
-    return nothing
-end
-
-# Update both Gₓ and Gᵥ in [1 Gₓ; Gᵥ 0]
-function _updateF!(F::AbstractMatrix, mechanism)
-    N = length(mechanism.bodies)*6
-    for eqc in mechanism.eqconstraints
-        L = length(eqc)
-        ids = unique(eqc.childids)
-        if eqc.parentid !== nothing
-            push!(ids, eqc.parentid) 
-        end
-        for id in ids
-            Gₓ = ConstrainedDynamics.∂g∂ʳpos(mechanism, eqc, id)
-            Gᵥ = ConstrainedDynamics.∂g∂ʳvel(mechanism, eqc, id)
-            offset = (id-1)*6
-            F[N+1:N+L, 1+offset:6+offset] = Gᵥ
-            F[1+offset:6+offset, N+1:N+L] = Gₓ'
+            F[1+offset:6+offset, N+1:N+L] = Gᵥ'
         end
         N += L  # Advance along first dimension
     end
@@ -75,8 +50,8 @@ function getvel(s, Nbodies)
     return v, ω
 end
 
-function d(s, sᵤ, Gₓ, Nbodies)
-    return sᵤ - s[1:Nbodies*6] + Gₓ'*s[1+Nbodies*6:end]
+function d(s, sᵤ, Gᵥ, Nbodies)
+    return - sᵤ + s[1:Nbodies*6] + Gᵥ'*s[1+Nbodies*6:end]
 end
 
 function g(mechanism)
@@ -111,16 +86,15 @@ function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism;
     updateMechanism!(mechanism, s)
     updateF!(F, mechanism)
     F += I*regularizer
-    Gₓ = (@view F[1:Nbodies*6, 1+Nbodies*6:end])'
-    f(s) = vcat(d(s, sᵤ, Gₓ, Nbodies), g(mechanism))
-    oldΔs = zeros(MVector{6*Nbodies + Ndims})
+    Gᵥ = (@view F[1+Nbodies*6:end, 1:Nbodies*6])
+    f(s) = vcat(d(s, sᵤ, Gᵥ, Nbodies), g(mechanism))
+    α = 0.5
     for _ in 1:newtonIter
-        updateF!(F, mechanism, Gᵥonly=true)
-
+        updateF!(F, mechanism)
         Δs = F\f(s)
-        s -= 0.5 * Δs
+        s -= α * Δs
         updateMechanism!(mechanism, s)
-        if sum((Δs - oldΔs).^2) < ϵ
+        if norm(f(s)) < ϵ && norm(g(mechanism)) < ϵ
             break
         end
     end
