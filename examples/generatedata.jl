@@ -87,13 +87,13 @@ function min2maxcoordinates(cstate::AbstractArray, mechanism::Mechanism)
     return maxdata
 end
 
-function simplependulum2D(;Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0, ΔJ = SMatrix{3,3,Float64}(zeros(9)...), threadlock = nothing)
+function simplependulum2D(steps; Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0, ΔJ = SMatrix{3,3,Float64}(zeros(9)...), threadlock = nothing)
     joint_axis = [1.0; 0.0; 0.0]
     g = -9.81
     l = 1.0
     r = 0.01
     p2 = [0.0;0.0;l / 2] # joint connection point
-    ΔT = 3.  # Simulation duration
+    ΔT = Δt * steps
     if threadlock === nothing
         mech, origin, link1 = _simplependulum2Dmech(r, l, m, ΔJ, joint_axis, p2, g, Δt)
     else
@@ -122,7 +122,7 @@ function _simplependulum2Dmech(r, l, m, ΔJ, joint_axis, p2, g, Δt)
     return Mechanism(origin, links, constraints, g=g, Δt=Δt), origin, link1
 end
 
-function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.], m = [1., sqrt(2)/2],
+function doublependulum2D(steps; Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.], m = [1., sqrt(2)/2],
                            ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], threadlock = nothing)
     # Parameters
     l1 = 1.0
@@ -132,7 +132,7 @@ function doublependulum2D(;Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.], m
     vert12 = -vert11
     vert21 = [0.;0.;l2 / 2]
     joint_axis = [1.0; 0.0; 0.0]
-    ΔT = 3.
+    ΔT = Δt * steps
     # Initial orientation
     q1 = UnitQuaternion(RotX(θstart[1]))
     q2 = UnitQuaternion(RotX(θstart[2]))
@@ -169,7 +169,7 @@ function _doublependulum2Dmech(x, y, l1, l2, m, ΔJ, joint_axis, vert11, vert12,
     return mech, origin, link1, link2
 end
 
-function cartpole(;Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0., m = [1., 1.],
+function cartpole(steps; Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0., m = [1., 1.],
                    ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], threadlock = nothing)
     xaxis = [1.0; 0.0; 0.0]
     yaxis = [0.0; 1.0; 0.0]
@@ -179,7 +179,7 @@ function cartpole(;Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0.,
     p01 = [0.0; 0.0; 0.0] # joint connection point
     p12 = [0.0; 0.0; 0.0]
     p21 = [0.0; 0.0; l/2]
-    ΔT = 3.
+    ΔT = steps*Δt
     x, y, z = 0.2, 0.3, 0.1
     if threadlock === nothing
         mech, origin, link1, link2 = _cartpolemech(x, y, z, r, l, m, ΔJ, xaxis, yaxis, p01, p12, p21, Δt)
@@ -214,14 +214,14 @@ function _cartpolemech(x, y, z, r, l, m, ΔJ, xaxis, yaxis, p01, p12, p21, Δt)
     return mech, origin, link1, link2
 end
 
-function fourbar(;Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,3,Float64}(zeros(9)...), threadlock = nothing)
+function fourbar(steps; Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,3,Float64}(zeros(9)...), threadlock = nothing)
     # Parameters
     ex = [1.;0.;0.]
     l = 1.0
     x, y = .1, .1
     vert11 = [0.;0.;l / 2]
     vert12 = -vert11
-    ΔT = 3.
+    ΔT = steps*Δt
     # Initial orientation
     q = UnitQuaternion(RotX(θstart[2]))
     qoff = UnitQuaternion(RotX(θstart[1]))

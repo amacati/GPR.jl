@@ -88,13 +88,13 @@ function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism;
     F += I*regularizer
     Gᵥ = (@view F[1+Nbodies*6:end, 1:Nbodies*6])
     f(s) = vcat(d(s, sᵤ, Gᵥ, Nbodies), g(mechanism))
-    α = 0.5
-    for _ in 1:newtonIter
+    α = 1.
+    for i in 1:newtonIter
         updateF!(F, mechanism)
         Δs = F\f(s)
         s -= α * Δs
         updateMechanism!(mechanism, s)
-        if norm(f(s)) < ϵ && norm(g(mechanism)) < ϵ
+        if norm(f(s)) < ϵ && norm(Δs) < ϵ
             break
         end
     end

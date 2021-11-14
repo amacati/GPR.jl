@@ -11,27 +11,26 @@ function experimentFBMin(config)
     mechanism = deepcopy(config["mechanism"])
     l = mechanism.bodies[1].shape.xyz[3]
     # Sample from dataset
-    dataset = config["dataset"]
-    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
-    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
-    xtrain_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t0]
-    xtrain_t0 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_t0]
-    xtrain_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t1]
-    xtrain_t1 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_t1]
-    xtrain_t0 = reduce(hcat, xtrain_t0)
-    ω1 = [s[2] for s in xtrain_t1]
-    ω2 = [s[4] for s in xtrain_t1]
+    xtrain_old = [tocstate(x) for x in config["traindf"].sold]
+    xtrain_curr = [tocstate(x) for x in config["traindf"].scurr]
+    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
+    xtrain_old = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_old]
+    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
+    xtrain_curr = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_curr]
+    xtrain_old = reduce(hcat, xtrain_old)
+    ω1 = [s[2] for s in xtrain_curr]
+    ω2 = [s[4] for s in xtrain_curr]
     ytrain = [ω1, ω2]
-    xtest_t0, xtest_t1, xtest_tk = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, 
-                                                 pseudorandom = true, exclude = trainsets, stepsahead=[0,1,config["simsteps"]+1])
-    xtest_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t0]
-    xtest_t0 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_t0]
-    xtest_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t1]
-    xtest_t1 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_t1]
-    # intentionally not converting xtest_tk since final comparison is done in maximal coordinates
+    xtest_old = [tocstate(x) for x in config["testdf"].sold]
+    xtest_curr = [tocstate(x) for x in config["testdf"].scurr]
+    xtest_future = [tocstate(x) for x in config["testdf"].sfuture]
+    xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]
+    xtest_old = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_old]
+    xtest_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr]
+    xtest_curr = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_curr]
+    # intentionally not converting xtest_future since final comparison is done in maximal coordinates
 
-    stdx = std(xtrain_t0, dims=2)
+    stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000
     params = [1., (10 ./(stdx))...]
     params = params .+ (5rand(length(params)) .- 0.999) .* params
@@ -40,7 +39,7 @@ function experimentFBMin(config)
     gps = Vector()
     for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(xtrain_t0, yi, MeanZero(), kernel)
+        gp = GP(xtrain_old, yi, MeanZero(), kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
@@ -49,9 +48,9 @@ function experimentFBMin(config)
         return [predict_y(gp, states)[1][1] for gp in gps]
     end
 
-    for i in 1:length(xtest_t0)
-        θ1old, ω1old, θ2old, ω2old = xtest_t0[i]
-        θ1curr, _, θ2curr, _ = xtest_t1[i]
+    for i in 1:length(xtest_old)
+        θ1old, ω1old, θ2old, ω2old = xtest_old[i]
+        θ1curr, _, θ2curr, _ = xtest_curr[i]
         for _ in 1:config["simsteps"]
             ω1curr, ω2curr = predict_velocities(gps, reshape([θ1old, ω1old, θ2old, ω2old], :, 1))
             θ1old, ω1old, θ2old, ω2old = θ1curr, ω1curr, θ2curr, ω2curr
@@ -65,7 +64,7 @@ function experimentFBMin(config)
         cstate = [x1..., zeros(10)..., x2..., zeros(10)..., x3..., zeros(10)..., x4..., zeros(10)...]  # Orientation, velocities not used in error
         push!(predictedstates, cstate)
     end
-    return predictedstates, xtest_tk, params
+    return predictedstates, xtest_future, params
 end
 
 function simulation()
@@ -73,14 +72,14 @@ function simulation()
     _storage, mechanism, initialstates = fourbar(θstart = [π/4, π/4])
     l = mechanism.bodies[1].shape.xyz[3]
     dataset += _storage
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, 200, random = true, replace=false)
-    xtrain_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t0]
-    xtrain_t0 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_t0]
-    xtrain_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t1]
-    xtrain_t1 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_t1]
-    xtrain_t0 = reduce(hcat, xtrain_t0)
-    ω1 = [s[2] for s in xtrain_t1]
-    ω2 = [s[4] for s in xtrain_t1]
+    xtrain_old, xtrain_curr = sampledataset(dataset, 200, random = true, replace=false)
+    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
+    xtrain_old = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_old]
+    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
+    xtrain_curr = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_curr]
+    xtrain_old = reduce(hcat, xtrain_old)
+    ω1 = [s[2] for s in xtrain_curr]
+    ω2 = [s[4] for s in xtrain_curr]
     ytrain = [ω1, ω2]
 
     storage = Storage{Float64}(300, length(mechanism.bodies))
@@ -91,14 +90,14 @@ function simulation()
         storage.ω[id][1] = _storage.ω[id][1]
     end
 
-    stdx = std(xtrain_t0, dims=2)
+    stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000
     params = [100., (10 ./(stdx))...]
 
     gps = Vector()
     for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(xtrain_t0, yi, MeanZero(), kernel)
+        gp = GP(xtrain_old, yi, MeanZero(), kernel)
         # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end

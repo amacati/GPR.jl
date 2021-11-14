@@ -40,7 +40,7 @@ function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
     open(joinpath(dirname(@__FILE__), "config", "config.json"),"r") do f
         params = JSON.parse(f)[EXPERIMENT_ID]
     end
-    # Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2, "m" => 1e-1, "J" => 1e-2)
+    Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2, "m" => 1e-1, "J" => 1e-2)
     # Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0, "m" => 0, "J" => 0)
     config = Dict("EXPERIMENT_ID" => EXPERIMENT_ID,
                   "Σ" => Σ,

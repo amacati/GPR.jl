@@ -40,6 +40,10 @@ function tocstate(vstate::Vector{Vector{Float64}})
     return reduce(vcat, vstate)
 end
 
+function tocstate(states::Vector{State})
+    return reduce(vcat, [tocstate(state) for state in states])
+end
+
 function tovstate(cstates::AbstractVector)
     @assert length(cstates) % 13 == 0 ("State size has to be multiple of 13")
     return [cstates[i:i+12] for i in 1:13:length(cstates)]
@@ -80,6 +84,10 @@ end
 function getstates(mechanism::Mechanism)
     Nbodies = length(mechanism.bodies)
     return [deepcopy(mechanism.bodies[id].state) for id in 1:Nbodies]
+end
+
+function getstates(storage::Storage, i::Integer)
+    return tostates(getcstate(storage, i))
 end
 
 function setstates!(mechanism::Mechanism, vstates::Vector{Vector{Float64}})

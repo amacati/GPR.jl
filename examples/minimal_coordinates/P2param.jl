@@ -11,23 +11,22 @@ function experimentP2Min(config)
     mechanism = deepcopy(config["mechanism"])
     l1, l2 = mechanism.bodies[1].shape.xyz[3], mechanism.bodies[2].shape.xyz[3]
     # Sample from dataset
-    dataset = config["dataset"]
-    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
-    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
-    xtrain_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t0]
-    xtrain_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t1]
-    xtrain_t0 = reduce(hcat, xtrain_t0)
-    yω1 = [s[2] for s in xtrain_t1]
-    yω2 = [s[4] for s in xtrain_t1]
+    xtrain_old = [tocstate(x) for x in config["traindf"].sold]
+    xtrain_curr = [tocstate(x) for x in config["traindf"].scurr]
+    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
+    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
+    xtrain_old = reduce(hcat, xtrain_old)
+    yω1 = [s[2] for s in xtrain_curr]
+    yω2 = [s[4] for s in xtrain_curr]
     ytrain = [yω1, yω2]
-    xtest_t0, xtest_t1, xtest_tk = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, 
-                                                 pseudorandom = true, exclude = trainsets, stepsahead=[0,1,config["simsteps"]+1])
-    xtest_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t0]
-    xtest_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t1]
-    # intentionally not converting xtest_tk since final comparison is done in maximal coordinates
+    xtest_old = [tocstate(x) for x in config["testdf"].sold]
+    xtest_curr = [tocstate(x) for x in config["testdf"].scurr]
+    xtest_future = [tocstate(x) for x in config["testdf"].sfuture]
+    xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]
+    xtest_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr]
+    # intentionally not converting xtest_future since final comparison is done in maximal coordinates
 
-    stdx = std(xtrain_t0, dims=2)
+    stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000
     params = [1.1, (50 ./stdx)...]
     params = params .+ (5rand(length(params)) .- 0.999) .* params
@@ -36,7 +35,7 @@ function experimentP2Min(config)
     gps = Vector()
     for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(xtrain_t0, yi, MeanZero(), kernel)
+        gp = GP(xtrain_old, yi, MeanZero(), kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
@@ -45,9 +44,9 @@ function experimentP2Min(config)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    for i in 1:length(xtest_t0)
-        θ1old, ω1old, θ2old, ω2old = xtest_t0[i]
-        θ1curr, _, θ2curr, _ = xtest_t1[i]
+    for i in 1:length(xtest_old)
+        θ1old, ω1old, θ2old, ω2old = xtest_old[i]
+        θ1curr, _, θ2curr, _ = xtest_curr[i]
         for _ in 1:config["simsteps"]
             ω1curr, ω2curr = predict_velocities(gps, reshape([θ1old, ω1old, θ2old, ω2old], :, 1))
             θ1old, ω1old, θ2old, ω2old = θ1curr, ω1curr, θ2curr, ω2curr
@@ -60,7 +59,7 @@ function experimentP2Min(config)
                    0, l1*sin(θ1curr) + 0.5l2*sin(θ1curr+θ2curr), -l1*cos(θ1curr) - 0.5l2*cos(θ1curr + θ2curr), vq2..., zeros(6)...]
         push!(predictedstates, cstate)
     end
-    return predictedstates, xtest_tk, params
+    return predictedstates, xtest_future, params
 end
 
 function simulation(config, params)

@@ -1,4 +1,5 @@
 using Plots
+using Statistics
 using StatsPlots
 using Statistics
 using CategoricalArrays
@@ -12,64 +13,32 @@ checkpoint = loadcheckpoint("noisy_final")
 EXPERIMENT_IDs = Vector{String}()
 vnsamples = [2^i for i in 1:9]
 
-function create_plot(kstep_mean, kstep_std, etype, abbrev, coords)
+function create_plot(kstep_median, kstep_std, abbrev)
     sx = repeat(["Max", "Min"], inner = length(vnsamples))
-
     nam = CategoricalArray(repeat([string(i) for i in vnsamples], outer = 2))
     levels!(nam, [string(i) for i in vnsamples])
-    display(kstep_std)
-    plt = groupedbar(nam, kstep_mean, yerr = kstep_std, group = sx, 
-                     title = "$etype $coords coordinates OSA error", xlabel = "Training samples", 
+    plt = groupedbar(nam, kstep_median, yerror = kstep_std, group = sx, 
+                     title = "$abbrev OSA error", xlabel = "Training samples", 
                      ylabel = "K steps ahead forecast error")
-    png(plt, "$(abbrev)_error_$coords")
+    png(plt, "$(abbrev)_error")
 end
 
 # Maximal coordinates
 # Cartpole
-kstep_mean = Vector{Float64}()
-kstep_std = Vector{Float64}()
-for nsamples in vnsamples
-    kstep_mse = checkpoint["CP_MAX"*string(nsamples)]["kstep_mse"]
-    filter!(x -> x!==nothing, kstep_mse)
-    push!(kstep_mean, mean(kstep_mse))
-    push!(kstep_std, std(kstep_mse))
+for id in ["CP", "P1", "P2"]# , "FB"]
+    kstep_median = Vector{Float64}()
+    kstep_std = Vector{Float64}()
+    for nsamples in vnsamples
+        kstep_mse = checkpoint[id*"_MAX"*string(nsamples)]["kstep_mse"]
+        filter!(x -> x!==nothing, kstep_mse)
+        push!(kstep_median, median(kstep_mse))
+        push!(kstep_std, std(kstep_mse))
+    end
+    for nsamples in vnsamples
+        kstep_mse = checkpoint[id*"_MIN"*string(nsamples)]["kstep_mse"]
+        filter!(x -> x!==nothing, kstep_mse)
+        push!(kstep_median, median(kstep_mse))
+        push!(kstep_std, std(kstep_mse))
+    end
+    create_plot(kstep_median, kstep_std, id)
 end
-for nsamples in vnsamples
-    kstep_mse = checkpoint["CP_MIN"*string(nsamples)]["kstep_mse"]
-    filter!(x -> x!==nothing, kstep_mse)
-    push!(kstep_mean, mean(kstep_mse))
-    push!(kstep_std, std(kstep_mse))
-end
-create_plot(kstep_mean, kstep_std, "Cartpole", "cp", "maximal")
-
-kstep_mean = Vector{Float64}()
-kstep_std = Vector{Float64}()
-for nsamples in vnsamples
-    kstep_mse = checkpoint["P1_MAX"*string(nsamples)]["kstep_mse"]
-    filter!(x -> x!==nothing, kstep_mse)
-    push!(kstep_mean, mean(kstep_mse))
-    push!(kstep_std, std(kstep_mse))
-end
-for nsamples in vnsamples
-    kstep_mse = checkpoint["P1_MIN"*string(nsamples)]["kstep_mse"]
-    filter!(x -> x!==nothing, kstep_mse)
-    push!(kstep_mean, mean(kstep_mse))
-    push!(kstep_std, std(kstep_mse))
-end
-create_plot(kstep_mean, kstep_std, "1 Link pendulum", "p1", "maximal")
-
-kstep_mean = Vector{Float64}()
-kstep_std = Vector{Float64}()
-for nsamples in vnsamples
-    kstep_mse = checkpoint["P2_MAX"*string(nsamples)]["kstep_mse"]
-    filter!(x -> x!==nothing, kstep_mse)
-    push!(kstep_mean, mean(kstep_mse))
-    push!(kstep_std, std(kstep_mse))
-end
-for nsamples in vnsamples
-    kstep_mse = checkpoint["P2_MIN"*string(nsamples)]["kstep_mse"]
-    filter!(x -> x!==nothing, kstep_mse)
-    push!(kstep_mean, mean(kstep_mse))
-    push!(kstep_std, std(kstep_mse))
-end
-create_plot(kstep_mean, kstep_std, "2 link pendulum", "p2", "maximal")

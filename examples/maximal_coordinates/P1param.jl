@@ -10,18 +10,17 @@ using Statistics
 function experimentP1Max(config)
     mechanism = deepcopy(config["mechanism"])
     # Sample from dataset
-    dataset = config["dataset"]
-    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
-    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
-    xtrain_t0 = reduce(hcat, xtrain_t0)
-    yv2 = [s[9] for s in xtrain_t1]
-    yv3 = [s[10] for s in xtrain_t1]
-    yω = [s[11] for s in xtrain_t1]
+    xtrain_old = [tocstate(x) for x in config["traindf"].sold]
+    xtrain_curr = [tocstate(x) for x in config["traindf"].scurr]
+    xtrain_old = reduce(hcat, xtrain_old)
+    yv2 = [s[9] for s in xtrain_curr]
+    yv3 = [s[10] for s in xtrain_curr]
+    yω = [s[11] for s in xtrain_curr]
     ytrain = [yv2, yv3, yω]
-    xtest_t0, xtest_tk = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, 
-                                       pseudorandom = true, exclude = trainsets, stepsahead=[0,config["simsteps"]+1])
-    stdx = std(xtrain_t0, dims=2)
+    xtest_old = [tocstate(x) for x in config["testdf"].sold]
+    xtest_future = [tocstate(x) for x in config["testdf"].sfuture]
+    
+    stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000
     params = [100., (10 ./(stdx))...]
     params = params .+ (5rand(length(params)) .- 0.999) .* params
@@ -30,7 +29,7 @@ function experimentP1Max(config)
     gps = Vector()
     for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(xtrain_t0, yi, MeanZero(), kernel)
+        gp = GP(xtrain_old, yi, MeanZero(), kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
@@ -39,9 +38,9 @@ function experimentP1Max(config)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    for i in 1:length(xtest_t0)
-        setstates!(mechanism, tovstate(xtest_t0[i]))
-        oldstates = xtest_t0[i]
+    for i in 1:length(xtest_old)
+        setstates!(mechanism, tovstate(xtest_old[i]))
+        oldstates = xtest_old[i]
         for _ in 1:config["simsteps"]
             μ = predict_velocities(gps, reshape(reduce(vcat, oldstates), :, 1))
             vcurr, ωcurr = [SVector(0, μ[1:2]...)], [SVector(μ[3], 0, 0)]
@@ -52,7 +51,7 @@ function experimentP1Max(config)
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
         push!(predictedstates, getcstate(mechanism))  # Extract xnew, write as result
     end
-    return predictedstates, xtest_tk, params
+    return predictedstates, xtest_future, params
 end
 
 function simulation(config, params)
