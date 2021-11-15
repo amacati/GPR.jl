@@ -48,7 +48,6 @@ function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
                   "nruns" => config["nruns"],
                   "Δtsim" => config["Δtsim"],
                   "nsamples" => nsamples,
-                  "ntestsets" => config["ntestsets"],
                   "testsamples" => config["testsamples"],
                   "simsteps" => config["simsteps"],
                   "nprocessed" => nprocessed,
@@ -60,23 +59,22 @@ function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
     return deepcopy(config)
 end
 
-# "nruns" => 100, "Δtsim" => 0.001, "ntestsets" => 5, "testsamples" => 1000, "simsteps" => 20
+# "nruns" => 100, "Δtsim" => 0.001, "testsamples" => 1000, "simsteps" => 20
 
 config = Dict("nruns" => 100,
               "Δtsim" => 0.001,
-              "ntestsets" => 5,
               "testsamples" => 1000,
               "simsteps" => 20)
 
-for nsamples in [2]  #, 4 , 8, 16, 32, 64, 128, 256, 512]
-    # parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
-    # parallelsim(experimentNoisyP2Max, expand_config("P2_MAX", nsamples, config))
-    # parallelsim(experimentNoisyCPMax, expand_config("CP_MAX", nsamples, config))
-    # parallelsim(experimentNoisyFBMax, expand_config("FB_MAX", nsamples, config))
-    # parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
-    # parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
-    # parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
-    # parallelsim(experimentNoisyFBMin, expand_config("FB_MIN", nsamples, config))
+for nsamples in [2, 4 , 8, 16, 32, 64, 128, 256, 512]
+    parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
+    parallelsim(experimentNoisyP2Max, expand_config("P2_MAX", nsamples, config))
+    parallelsim(experimentNoisyCPMax, expand_config("CP_MAX", nsamples, config))
+    parallelsim(experimentNoisyFBMax, expand_config("FB_MAX", nsamples, config))
+    parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
+    parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
+    parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
+    parallelsim(experimentNoisyFBMin, expand_config("FB_MIN", nsamples, config))
 
     # parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config), md = true)
     # parallelsim(experimentMeanDynamicsNoisyP2Max, expand_config("P2_MAX", nsamples, config), md = true)

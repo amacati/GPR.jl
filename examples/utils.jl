@@ -111,14 +111,14 @@ function overwritestorage(storage::Storage, states, i)
 end
 
 function simulationerror(groundtruth::Storage, predictions::Storage; stop::Integer = length(predictions.x[1]))
-    @assert 1 < stop <= length(predictions.x[1])
+    @assert 1 <= stop <= length(predictions.x[1])
     @assert length(groundtruth.x[1]) >= length(predictions.x[1])
     Nbodies = length(groundtruth.x)
     error = 0
-    for i in 2:stop
+    for i in 1:stop
         # get vector, compute error
-        xtrue = [state[1:3] for state in getvstates(groundtruth, i)]  # for t+1
-        xpred = [state[1:3] for state in getvstates(predictions, i)]  # for t+1
+        xtrue = [state[1:3] for state in getvstates(groundtruth, i)]
+        xpred = [state[1:3] for state in getvstates(predictions, i)]
         for id in 1:Nbodies
             error += sum((xtrue[id] .- xpred[id]).^2)
         end
@@ -128,7 +128,7 @@ function simulationerror(groundtruth::Storage, predictions::Storage; stop::Integ
 end
 
 function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Vector}; stop::Integer = length(predictions))
-    @assert 1 < stop <= length(predictions)
+    @assert 1 <= stop <= length(predictions)
     @assert length(groundtruth[1]) % 13 == 0 ("State has to be of length Nbodies*13")
     @assert length(groundtruth) >= length(predictions)
     Nbodies = div(length(groundtruth[1]), 13)

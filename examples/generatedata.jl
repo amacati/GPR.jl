@@ -261,3 +261,68 @@ function _fourbarmech(x, y, l, m, ΔJ, ex, vert11, vert12, Δt)
     mech = Mechanism(origin, links, constraints, Δt=Δt)
     return mech, origin, links
 end
+
+function generate_dataframes(config, nsamples, exp1, exp2, exptest; parallel = false)
+    parallel && return _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
+    return _generate_dataframes(config, nsamples, exp1, exp2, exptest)
+end
+
+function _generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    scaling = Int(0.01/config["Δtsim"])
+    traindf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}())
+    for _ in 1:div(nsamples, 2)
+        storage = exp1()  # Simulate 2 secs from random position, choose one sample
+        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
+        push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+    end
+    for _ in 1:div(nsamples, 2)
+        storage = exp2()
+        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
+        push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+    end
+    testdf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}(), sfuture = Vector{Vector{State}}())
+    for _ in 1:config["testsamples"]
+        storage = exptest()  # Simulate 2 secs from random position, choose one sample
+        j = rand(1:2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))  # End of storage - required steps
+        push!(testdf, (getstates(storage, j), getstates(storage, j+scaling), getstates(storage, j+scaling*(config["simsteps"]+1))))
+    end
+    return traindf, testdf
+end
+
+function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
+    scaling = Int(0.01/config["Δtsim"])
+    traindf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}())
+    threadlock = ReentrantLock()  # Push to df not atomic
+    Threads.@threads for _ in 1:div(nsamples, 2)
+        storage = exp1()  # Simulate 2 secs from random position, choose one sample
+        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
+        lock(threadlock)
+        try
+            push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+        finally
+            unlock(threadlock)
+        end
+    end
+    Threads.@threads for _ in 1:div(nsamples, 2)
+        storage = exp2()
+        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
+        lock(threadlock)
+        try
+            push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+        finally
+            unlock(threadlock)
+        end
+    end
+    testdf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}(), sfuture = Vector{Vector{State}}())
+    Threads.@threads for _ in 1:config["testsamples"]
+        storage = exptest()  # Simulate 2 secs from random position, choose one sample
+        j = rand(1:2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))  # End of storage - required steps
+        lock(threadlock)
+        try
+            push!(testdf, (getstates(storage, j), getstates(storage, j+scaling), getstates(storage, j+scaling*(config["simsteps"]+1))))
+        finally
+            unlock(threadlock)
+        end
+    end
+    return traindf, testdf
+end

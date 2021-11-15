@@ -45,44 +45,6 @@ function expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsampl
                   "resultlock"=>ReentrantLock())
     return config
 end
-
-function generate_dataframes(config, nsamples, exp1, exp2, exptest)
-    scaling = Int(0.01/config["Δtsim"])
-    traindf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}())
-    threadlock = ReentrantLock()  # Push to df not atomic
-    Threads.@threads for _ in 1:div(nsamples, 2)
-        storage = exp1()  # Simulate 2 secs from random position, choose one sample
-        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
-        lock(threadlock)
-        try
-            push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
-        finally
-            unlock(threadlock)
-        end
-    end
-    Threads.@threads for _ in 1:div(nsamples, 2)
-        storage = exp2()
-        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
-        lock(threadlock)
-        try
-            push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
-        finally
-            unlock(threadlock)
-        end
-    end
-    testdf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}(), sfuture = Vector{Vector{State}}())
-    Threads.@threads for _ in 1:config["testsamples"]
-        storage = exptest()  # Simulate 2 secs from random position, choose one sample
-        j = rand(1:2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))  # End of storage - required steps
-        lock(threadlock)
-        try
-            push!(testdf, (getstates(storage, j), getstates(storage, j+scaling), getstates(storage, j+scaling*(config["simsteps"]+1))))
-        finally
-            unlock(threadlock)
-        end
-    end
-    return traindf, testdf
-end
   
 function hyperparametersearchP1Max(config, nsamples, _loadcheckpoint=false)
     EXPERIMENT_ID = "P1_MAX"
@@ -91,7 +53,7 @@ function hyperparametersearchP1Max(config, nsamples, _loadcheckpoint=false)
     exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
     exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, threadlock=threadlock)[1]  # [-π:-π/2; π/2:π] [-π:π]
     exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = simplependulum2D(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentP1Max, config)  # Launch multithreaded search
@@ -104,7 +66,7 @@ function hyperparametersearchP2Max(config, nsamples, _loadcheckpoint=false)
     exp1 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5) .* [π, 2π], threadlock=threadlock)[1]
     exp2 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=[(rand()/2 + 0.5)*rand([-1,1]), 2(rand()-0.5)] .* π, threadlock=threadlock)[1]    # [-π:-π/2; π/2:π] [-π:π]
     exptest = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5).*2π, threadlock=threadlock)[1]
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = doublependulum2D(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentP2Max, config)  # Launch multithreaded search
@@ -117,7 +79,7 @@ function hyperparametersearchCPMax(config, nsamples, _loadcheckpoint=false)
     exp1 = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=(rand()-0.5)π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), threadlock=threadlock)[1]
     exp2 = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=(rand()/2+0.5)*rand([-1,1])π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), threadlock=threadlock)[1]
     exptest = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=2π*(rand()-0.5), vstart=2(rand()-0.5), ωstart=2(rand()-0.5), threadlock=threadlock)[1]
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = cartpole(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentCPMax, config)
@@ -131,7 +93,7 @@ function hyperparametersearchFBMax(config, nsamples, _loadcheckpoint = false)
     exp1 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, threadlock=threadlock)[1]
     exp2 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, threadlock=threadlock)[1]
     exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, threadlock=threadlock)[1]
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = fourbar(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentFBMax, config)
@@ -144,7 +106,7 @@ function hyperparametersearchP1Min(config, nsamples, _loadcheckpoint=false)
     exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
     exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, threadlock=threadlock)[1]  # [-π:-π/2; π/2:π] [-π:π]
     exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = simplependulum2D(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentP1Min, config)
@@ -157,7 +119,7 @@ function hyperparametersearchP2Min(config, nsamples, _loadcheckpoint=false)
     exp1 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5) .* [π, 2π], threadlock=threadlock)[1]
     exp2 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=[(rand()/2 + 0.5)*rand([-1,1]), 2(rand()-0.5)] .* π, threadlock=threadlock)[1]    # [-π:-π/2; π/2:π] [-π:π]
     exptest = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2) .- 0.5).*2π, threadlock=threadlock)[1]
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = doublependulum2D(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentP2Min, config)
@@ -170,7 +132,7 @@ function hyperparametersearchCPMin(config, nsamples, _loadcheckpoint=false)
     exp1 = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=(rand()-0.5)π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), threadlock=threadlock)[1]
     exp2 = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=(rand()/2+0.5)*rand([-1,1])π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), threadlock=threadlock)[1]
     exptest = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=2π*(rand()-0.5), vstart=2(rand()-0.5), ωstart=2(rand()-0.5), threadlock=threadlock)[1]
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = cartpole(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentCPMin, config)
@@ -183,7 +145,7 @@ function hyperparametersearchFBMin(config, nsamples, _loadcheckpoint = false)
     exp1 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, threadlock=threadlock)[1]
     exp2 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, threadlock=threadlock)[1]
     exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, threadlock=threadlock)[1]
-    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest)
+    traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = fourbar(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
     parallelsearch(experimentFBMin, config)
