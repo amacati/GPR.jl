@@ -2,6 +2,7 @@ using ConstrainedDynamics
 using ConstrainedDynamicsVis
 using StaticArrays
 using Rotations
+using DataFrames
 
 
 function loaddata(storage; coordinates="maximal", mechanism = nothing)
