@@ -8,60 +8,61 @@ using Statistics
 
 
 function experimentMeanDynamicsNoisyFBMin(config)
-    dataset = Dataset()
     Σ = config["Σ"]
     ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
     m = abs.(1 .+ Σ["m"]randn())
-    for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
-        storage, _, _ = fourbar(Δt=config["Δtsim"], θstart=[θ1, θ2], m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])
-        dataset += storage
-    end
-    mechanism = fourbar(Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
+    exp1 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exp2 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
+    mechanism = fourbar(1; Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.xyz[3]
-    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
-    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-    xtest_t1true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true,
-                                                        pseudorandom = true, exclude = trainsets, stepsahead=[1,config["simsteps"]+1]))
-    xtest_t1true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t1true]
-    xtest_t1true = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_t1true]
+    xtest_curr_true = deepcopy([tocstate(x) for x in testdf.scurr])  # Without noise
+    xtest_curr_true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr_true]
+    xtest_curr_true = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_curr_true]
+    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
 
     # Add noise to the dataset
-    for storage in dataset.storages
-        for t in 1:length(storage.x[1])
-            storage.q[1][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[1][t]
-            storage.ω[1][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-            storage.q[3][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[3][t]
-            storage.ω[3][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-            θ1 = Rotations.rotation_angle(storage.q[1][t])*sign(storage.q[1][t].x)*sign(storage.q[1][t].w)  # Signum for axis direction
-            θ2 = Rotations.rotation_angle(storage.q[3][t])*sign(storage.q[3][t].x)*sign(storage.q[3][t].w)
-            ω1, ω2 = storage.ω[1][t][1], storage.ω[3][t][1]
-            storage.q[2][t] = UnitQuaternion(RotX(θ2))
-            storage.q[4][t] = UnitQuaternion(RotX(θ1))
-            storage.x[1][t] = [0, 0.5sin(θ1)l, -0.5cos(θ1)l]
-            storage.x[2][t] = [0, sin(θ1)l + 0.5sin(θ2)l, -cos(θ1)l - 0.5cos(θ2)l]
-            storage.x[3][t] = [0, 0.5sin(θ2)l, -0.5cos(θ2)l]
-            storage.x[4][t] = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - 0.5cos(θ1)l]
-            storage.v[1][t] = [0, 0.5cos(θ1)l*ω1, 0.5sin(θ1)l*ω1]
-            storage.v[2][t] = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
-            storage.v[3][t] = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
-            storage.v[4][t] = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
-            storage.ω[2][t] = storage.ω[3][t]
-            storage.ω[4][t] = storage.ω[1][t]
+    for df in [traindf, testdf]
+        for col in eachcol(df)
+            for t in 1:length(col)
+                col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc
+                col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+                col[t][3].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][3].qc
+                col[t][3].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+                θ1 = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
+                θ2 = Rotations.rotation_angle(col[t][3].qc)*sign(col[t][3].qc.x)*sign(col[t][3].qc.w)
+                ω1, ω2 = col[t][1].ωc[1], col[t][3].ωc[1]
+                col[t][2].qc = UnitQuaternion(RotX(θ2))
+                col[t][4].qc = UnitQuaternion(RotX(θ1))
+                col[t][1].xc = [0, 0.5sin(θ1)l, -0.5cos(θ1)l]
+                col[t][2].xc = [0, sin(θ1)l + 0.5sin(θ2)l, -cos(θ1)l - 0.5cos(θ2)l]
+                col[t][3].xc = [0, 0.5sin(θ2)l, -0.5cos(θ2)l]
+                col[t][4].xc = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - 0.5cos(θ1)l]
+                col[t][1].vc = [0, 0.5cos(θ1)l*ω1, 0.5sin(θ1)l*ω1]
+                col[t][2].vc = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
+                col[t][3].vc = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
+                col[t][4].vc = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
+                col[t][2].ωc = col[t][3].ωc
+                col[t][4].ωc = col[t][1].ωc
+            end
         end
     end
     # Create train and testsets
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
-    xtrain_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t0]
-    xtrain_t0 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_t0]
-    xtrain_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t1]
-    xtrain_t1 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_t1]
-    xtrain_t0 = reduce(hcat, xtrain_t0)
-    ω1 = [s[2] for s in xtrain_t1]
-    ω2 = [s[4] for s in xtrain_t1]
+    xtrain_old = [tocstate(x) for x in traindf.sold]
+    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
+    xtrain_old = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_old]
+    xtrain_curr = [tocstate(x) for x in traindf.scurr]
+    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
+    xtrain_curr = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtrain_curr]
+    xtrain_old = reduce(hcat, xtrain_old)
+    ω1 = [s[2] for s in xtrain_curr]
+    ω2 = [s[4] for s in xtrain_curr]
     ytrain = [ω1, ω2]
-    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
-    xtest_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t0]
-    xtest_t0 = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_t0]
+    xtest_old = [tocstate(x) for x in testdf.sold]
+    xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]
+    xtest_old = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_old]
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
@@ -96,7 +97,7 @@ function experimentMeanDynamicsNoisyFBMin(config)
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         id == 1 ? bodyID = 1 : bodyID = 3
         mean = MeanDynamics(mechanism, bodyID, 4, coords="min", tfmin = tfmin)
-        gp = GP(xtrain_t0, yi, mean, kernel)
+        gp = GP(xtrain_old, yi, mean, kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
@@ -105,21 +106,21 @@ function experimentMeanDynamicsNoisyFBMin(config)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    for i in 1:length(xtest_t0)
-        θ1old, ω1old, θ2old, ω2old = xtest_t0[i]
-        θ1curr, _, θ2curr, _ = xtest_t1true[i]
+    for i in 1:length(xtest_old)
+        θ1old, ω1old, θ2old, ω2old = xtest_old[i]
+        θ1curr, _, θ2curr, _ = xtest_curr_true[i]
         for _ in 1:config["simsteps"]
             ω1curr, ω2curr = predict_velocities(gps, reshape([θ1old, ω1old, θ2old, ω2old], :, 1))
             θ1old, ω1old, θ2old, ω2old = θ1curr, ω1curr, θ2curr, ω2curr
             θ1curr = θ1curr + ω1curr*mechanism.Δt
             θ2curr = θ2curr + ω2curr*mechanism.Δt
         end
-        x1 = [0, 0.5sin(θ1curr)l, -0.5cos(θ1curr)l]
-        x2 = [0, sin(θ1curr)l + 0.5sin(θ2curr)l, -cos(θ1curr)l - 0.5cos(θ2curr)l]
-        x3 = [0, 0.5sin(θ2curr)l, -0.5cos(θ2curr)l]
-        x4 = [0, sin(θ2curr)l + 0.5sin(θ1curr)l, -cos(θ2curr)l - 0.5cos(θ1curr)l]
+        x1 = [0, 0.5sin(θ1curr), -0.5cos(θ1curr)]
+        x2 = [0, sin(θ1curr) + 0.5sin(θ2curr), -cos(θ1curr) - 0.5cos(θ2curr)]
+        x3 = [0, 0.5sin(θ2curr), -0.5cos(θ2curr)]
+        x4 = [0, sin(θ2curr) + 0.5sin(θ1curr), -cos(θ2curr) - 0.5cos(θ1curr)]
         cstate = [x1..., zeros(10)..., x2..., zeros(10)..., x3..., zeros(10)..., x4..., zeros(10)...]  # Orientation, velocities not used in error
         push!(predictedstates, cstate)
     end
-    return predictedstates, xtest_tktrue
+    return predictedstates, xtest_future_true
 end

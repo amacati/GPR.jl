@@ -8,61 +8,64 @@ using Statistics
 
 
 function experimentMeanDynamicsNoisyFBMax(config)
-    dataset = Dataset()
     Σ = config["Σ"]
     ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
     m = abs.(1 .+ Σ["m"]randn())
-    for θ1 in -π/3:0.5:π/3, θ2 in -π/3:0.5:π/3
-        storage, _, _ = fourbar(Δt=config["Δtsim"], θstart=[θ1, θ2], m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])
-        dataset += storage
-    end
-    mechanism = fourbar(Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
+    exp1 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exp2 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
+    mechanism = fourbar(1; Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.xyz[3]
-    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
-    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-    xtest_t0true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true,
-                                                        pseudorandom = true, exclude = trainsets, stepsahead=[0,config["simsteps"]+1]))
+    xtest_old_true = deepcopy([tocstate(x) for x in testdf.sold])  # Without noise
+    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
+
     # Add noise to the dataset
-    for storage in dataset.storages
-        for t in 1:length(storage.x[1])
-            storage.q[1][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[1][t]
-            storage.ω[1][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-            storage.q[3][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[3][t]
-            storage.ω[3][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-            θ1 = Rotations.rotation_angle(storage.q[1][t])*sign(storage.q[1][t].x)*sign(storage.q[1][t].w)  # Signum for axis direction
-            θ2 = Rotations.rotation_angle(storage.q[3][t])*sign(storage.q[3][t].x)*sign(storage.q[3][t].w)
-            ω1, ω2 = storage.ω[1][t][1], storage.ω[3][t][1]
-            storage.q[2][t] = UnitQuaternion(RotX(θ2))
-            storage.q[4][t] = UnitQuaternion(RotX(θ1))
-            storage.x[1][t] = [0, 0.5sin(θ1)l, -0.5cos(θ1)l]
-            storage.x[2][t] = [0, sin(θ1)l + 0.5sin(θ2)l, -cos(θ1)l - 0.5cos(θ2)l]
-            storage.x[3][t] = [0, 0.5sin(θ2)l, -0.5cos(θ2)l]
-            storage.x[4][t] = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - 0.5cos(θ1)l]
-            storage.v[1][t] = [0, 0.5cos(θ1)l*ω1, 0.5sin(θ1)l*ω1]
-            storage.v[2][t] = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
-            storage.v[3][t] = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
-            storage.v[4][t] = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
-            storage.ω[2][t] = storage.ω[3][t]
-            storage.ω[4][t] = storage.ω[1][t]
+    for df in [traindf, testdf]
+        for col in eachcol(df)
+            for t in 1:length(col)
+                col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc
+                col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+                col[t][3].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][3].qc
+                col[t][3].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+                θ1 = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
+                θ2 = Rotations.rotation_angle(col[t][3].qc)*sign(col[t][3].qc.x)*sign(col[t][3].qc.w)
+                ω1, ω2 = col[t][1].ωc[1], col[t][3].ωc[1]
+                col[t][2].qc = UnitQuaternion(RotX(θ2))
+                col[t][4].qc = UnitQuaternion(RotX(θ1))
+                col[t][1].xc = [0, 0.5sin(θ1)l, -0.5cos(θ1)l]
+                col[t][2].xc = [0, sin(θ1)l + 0.5sin(θ2)l, -cos(θ1)l - 0.5cos(θ2)l]
+                col[t][3].xc = [0, 0.5sin(θ2)l, -0.5cos(θ2)l]
+                col[t][4].xc = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - 0.5cos(θ1)l]
+                col[t][1].vc = [0, 0.5cos(θ1)l*ω1, 0.5sin(θ1)l*ω1]
+                col[t][2].vc = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
+                col[t][3].vc = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
+                col[t][4].vc = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
+                col[t][2].ωc = col[t][3].ωc
+                col[t][4].ωc = col[t][1].ωc
+            end
         end
     end
+
     # Create train and testsets
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
-    xtrain_t0 = reduce(hcat, xtrain_t0)
-    yv12 = [s[9] for s in xtrain_t1]
-    yv13 = [s[10] for s in xtrain_t1]
-    yv22 = [s[22] for s in xtrain_t1]
-    yv23 = [s[23] for s in xtrain_t1]
-    yv32 = [s[35] for s in xtrain_t1]
-    yv33 = [s[36] for s in xtrain_t1]
-    yv42 = [s[48] for s in xtrain_t1]
-    yv43 = [s[49] for s in xtrain_t1]
-    yω11 = [s[11] for s in xtrain_t1]
-    yω21 = [s[24] for s in xtrain_t1]
-    yω31 = [s[37] for s in xtrain_t1]
-    yω41 = [s[50] for s in xtrain_t1]
+    xtrain_old = [tocstate(x) for x in traindf.sold]
+    xtrain_curr = [tocstate(x) for x in traindf.scurr]
+    xtrain_old = reduce(hcat, xtrain_old)
+    yv12 = [s[9] for s in xtrain_curr]
+    yv13 = [s[10] for s in xtrain_curr]
+    yv22 = [s[22] for s in xtrain_curr]
+    yv23 = [s[23] for s in xtrain_curr]
+    yv32 = [s[35] for s in xtrain_curr]
+    yv33 = [s[36] for s in xtrain_curr]
+    yv42 = [s[48] for s in xtrain_curr]
+    yv43 = [s[49] for s in xtrain_curr]
+    yω11 = [s[11] for s in xtrain_curr]
+    yω21 = [s[24] for s in xtrain_curr]
+    yω31 = [s[37] for s in xtrain_curr]
+    yω41 = [s[50] for s in xtrain_curr]
     ytrain = [yv12, yv13, yv22, yv23, yv32, yv33, yv42, yv43, yω11, yω21, yω31, yω41]
-    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, pseudorandom = true, exclude = trainsets, stepsahead = [0])
+    xtest_old = [tocstate(x) for x in testdf.sold]
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
@@ -72,8 +75,8 @@ function experimentMeanDynamicsNoisyFBMax(config)
         id in [1, 2, 9] ? bodyID = 1 : (id in [3, 4, 10] ? bodyID = 2 : (id in [5, 6, 11] ? bodyID = 3 : bodyID = 4))
         id in [1, 3, 5, 7] ? entryID = 2 : (id in [2, 4, 6, 8] ? entryID = 3 : entryID = 4)
         mean = MeanDynamics(mechanism, bodyID, entryID)
-        gp = GP(xtrain_t0, yi, mean, kernel)
-        # GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
+        gp = GP(xtrain_old, yi, mean, kernel)
+        GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
     
@@ -81,19 +84,19 @@ function experimentMeanDynamicsNoisyFBMax(config)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
-    for i in 1:length(xtest_t0)
-        setstates!(mechanism, tovstate(xtest_t0true[i]))
-        oldstates = xtest_t0[i]
+    for i in 1:length(xtest_old)
+        setstates!(mechanism, tovstate(xtest_old_true[i]))
+        oldstates = xtest_old[i]
         for _ in 1:config["simsteps"]
             μ = predict_velocities(gps, reshape(oldstates, :, 1))  # Noisy
             vcurr = [SVector(0, μ[1:2]...), SVector(0, μ[3:4]...), SVector(0, μ[5:6]...), SVector(0, μ[7:8]...)]
             ωcurr = [SVector(μ[9], 0, 0), SVector(μ[10], 0, 0), SVector(μ[11], 0, 0), SVector(μ[12], 0, 0)]
-            projectv!(vcurr, ωcurr, mechanism, regularizer = 1e-10)
+            projectv!(vcurr, ωcurr, mechanism, regularizer=1e-10)
             foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
             oldstates = getcstate(mechanism)
         end
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
         push!(predictedstates, getcstate(mechanism))  # Extract xnew, write as result
     end
-    return predictedstates, xtest_tktrue
+    return predictedstates, xtest_future_true
 end

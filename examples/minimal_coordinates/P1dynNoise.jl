@@ -8,54 +8,53 @@ using Statistics
 
 
 function experimentMeanDynamicsNoisyP1Min(config)
-    dataset = Dataset()
     Σ = config["Σ"]
     ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
     m = abs.(1. .+ Σ["m"]randn())
-    for θ in -π/2:0.1:π/2
-        storage, _, _ = simplependulum2D(Δt=config["Δtsim"], θstart=θ, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])
-        dataset += storage
-    end
-    mechanism = simplependulum2D(Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
+    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]  # [-π:-π/2; π/2:π] [-π:π]
+    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
+    mechanism = simplependulum2D(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.rh[2]
-    testsets = StatsBase.sample(1:length(dataset.storages), config["ntestsets"], replace=false)
-    trainsets = [i for i in 1:length(dataset.storages) if !(i in testsets)]
-
-    xtest_t1true, xtest_tktrue = deepcopy(sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, 
-                                                        pseudorandom = true, exclude = trainsets, stepsahead=[1,config["simsteps"]+1]))
-    xtest_t1true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t1true]  # Noise free
+    xtest_curr_true = deepcopy([tocstate(x) for x in testdf.scurr])  # Without noise
+    xtest_curr_true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr_true]
+    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
 
     # Add noise to the dataset
-    for storage in dataset.storages
-        for t in 1:length(storage.x[1])
-            storage.q[1][t] = UnitQuaternion(RotX(Σ["q"]*randn())) * storage.q[1][t]  # Small error around θ
-            storage.ω[1][t] += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-            θ = Rotations.rotation_angle(storage.q[1][t])*sign(storage.q[1][t].x)*sign(storage.q[1][t].w)  # Signum for axis direction
-            ω = storage.ω[1][t][1]
-            storage.x[1][t] = [0, l/2*sin(θ), -l/2*cos(θ)]  # Noise is consequence of θ and ω
-            storage.v[1][t] = [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]  # l/2 because measurement is in the center of the pendulum
+    for df in [traindf, testdf]
+        for col in eachcol(df)
+            for t in 1:length(col)
+                col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc  # Small error around θ
+                col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+                θ = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
+                ω = col[t][1].ωc[1]
+                col[t][1].xc = [0, l/2*sin(θ), -l/2*cos(θ)]  # Noise is consequence of θ and ω
+                col[t][1].vc = [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]  # l/2 because measurement is in the center of the pendulum
+            end
         end
     end
+
     # Create train and testsets
-    xtrain_t0, xtrain_t1 = sampledataset(dataset, config["nsamples"], Δt = config["Δtsim"], random = true, exclude = testsets, stepsahead = 0:1)
-    xtrain_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t0]
-    xtrain_t1 = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_t1]
-    xtrain_t0 = reduce(hcat, xtrain_t0)
-    ytrain = [s[2] for s in xtrain_t1]
-    xtest_t0 = sampledataset(dataset, config["testsamples"], Δt = config["Δtsim"], random = true, 
-                             pseudorandom = true, exclude = trainsets, stepsahead=[0])
-    xtest_t0 = [max2mincoordinates(cstate, mechanism) for cstate in xtest_t0]
-    # intentionally not converting xtest_tk since final comparison is done in maximal coordinates
+    xtrain_old = [tocstate(x) for x in traindf.sold]
+    xtrain_curr = [tocstate(x) for x in traindf.scurr]
+    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
+    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
+    xtrain_old = reduce(hcat, xtrain_old)
+    ytrain = [s[2] for s in xtrain_curr]
+    xtest_old = [tocstate(x) for x in testdf.sold]
+    xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
     kernel = SEArd(log.(params[2:end]), log(params[1]))
-    gp = GP(xtrain_t0, ytrain, MeanDynamics(mechanism, 1, 4, coords = "min"), kernel)
+    gp = GP(xtrain_old, ytrain, MeanDynamics(mechanism, 1, 4, coords = "min"), kernel)
     GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
     
-    for i in 1:length(xtest_t0)
-        θold, ωold = xtest_t0[i]
-        θcurr, _ = xtest_t1true[i]
+    for i in 1:length(xtest_old)
+        θold, ωold = xtest_old[i]
+        θcurr, _ = xtest_curr_true[i]
         for _ in 1:config["simsteps"]
             ωcurr = predict_y(gp, reshape([θold, ωold], :, 1))[1][1]
             θold, ωold = θcurr, ωcurr
@@ -66,6 +65,6 @@ function experimentMeanDynamicsNoisyP1Min(config)
         cstate = [0, 0.5l*sin(θcurr), -0.5l*cos(θcurr), vq1..., zeros(6)...]
         push!(predictedstates, cstate)
     end
-    return predictedstates, xtest_tktrue
+    return predictedstates, xtest_future_true
 end
 
