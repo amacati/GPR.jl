@@ -25,7 +25,7 @@ function experimentNoisyFBMin(config)
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "FB", l)
+        applynoise!(df, Σ, "FB", config["Δtsim"], l)
     end
     # Create train and testsets
     xtrain_old = [tocstate(x) for x in traindf.sold]

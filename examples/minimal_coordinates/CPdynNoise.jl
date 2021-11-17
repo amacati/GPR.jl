@@ -16,7 +16,7 @@ function experimentMeanDynamicsNoisyCPMin(config)
     exp2 = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=(rand()/2+0.5)*rand([-1,1])π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
     exptest = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=2π*(rand()-0.5), vstart=2(rand()-0.5), ωstart=2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
-    mechanism = cartpole(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
+    mechanism = cartpole(1, Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     l = mechanism.bodies[2].shape.rh[2]
     xtest_curr_true = deepcopy([tocstate(x) for x in testdf.scurr])  # Without noise
     xtest_curr_true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr_true]  # Noise free
@@ -24,7 +24,7 @@ function experimentMeanDynamicsNoisyCPMin(config)
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "CP", l)
+        applynoise!(df, Σ, "CP", config["Δtsim"], l)
     end
     
     # Create train and testsets

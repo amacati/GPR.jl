@@ -22,7 +22,7 @@ function experimentNoisyCPMax(config)
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "CP", mechanism.bodies[2].shape.rh[2])
+        applynoise!(df, Σ, "CP", config["Δtsim"], mechanism.bodies[2].shape.rh[2])
     end
     
     # Create train and testsets

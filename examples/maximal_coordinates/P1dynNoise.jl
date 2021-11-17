@@ -16,13 +16,13 @@ function experimentMeanDynamicsNoisyP1Max(config)
     exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]  # [-π:-π/2; π/2:π] [-π:π]
     exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
-    mechanism = simplependulum2D(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    mechanism = simplependulum2D(1, Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     xtest_old_true = deepcopy([tocstate(x) for x in testdf.sold])  # Without noise
     xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "P1", mechanism.bodies[1].shape.rh[2])
+        applynoise!(df, Σ, "P1", config["Δtsim"], mechanism.bodies[1].shape.rh[2])
     end
 
     # Create train and testsets

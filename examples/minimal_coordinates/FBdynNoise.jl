@@ -16,7 +16,7 @@ function experimentMeanDynamicsNoisyFBMin(config)
     exp2 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
     exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
-    mechanism = fourbar(1; Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
+    mechanism = fourbar(1; Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.xyz[3]
     xtest_curr_true = deepcopy([tocstate(x) for x in testdf.scurr])  # Without noise
     xtest_curr_true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr_true]
@@ -25,7 +25,7 @@ function experimentMeanDynamicsNoisyFBMin(config)
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "FB", l)
+        applynoise!(df, Σ, "FB", config["Δtsim"], l)
     end
     # Create train and testsets
     xtrain_old = [tocstate(x) for x in traindf.sold]

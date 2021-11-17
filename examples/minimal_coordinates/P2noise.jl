@@ -24,7 +24,7 @@ function experimentNoisyP2Min(config)
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "P2", l1, l2)
+        applynoise!(df, Σ, "P2", config["Δtsim"], l1, l2)
     end
 
     # Create train and testsets
