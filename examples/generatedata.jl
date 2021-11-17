@@ -327,3 +327,87 @@ function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
     end
     return traindf, testdf
 end
+
+function applynoise!(df, Σ, etype, varargs...)
+    etype == "P1" && return _applynoise_p1!(df, Σ, varargs...)
+    etype == "P2" && return _applynoise_p2!(df, Σ, varargs...)
+    etype == "CP" && return _applynoise_cp!(df, Σ, varargs...)
+    etype == "FB" && return _applynoise_fb!(df, Σ, varargs...)
+    throw(ArgumentError("Experiment $etype is not supported!"))
+end
+
+function _applynoise_p1!(df, Σ, l)
+    for col in eachcol(df)
+        for t in 1:length(col)
+            col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc  # Small error around θ
+            col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+            θ = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
+            ω = col[t][1].ωc[1]
+            col[t][1].xc = [0, l/2*sin(θ), -l/2*cos(θ)]  # Noise is consequence of θ and ω
+            col[t][1].vc = [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]  # l/2 because measurement is in the center of the pendulum
+        end
+    end
+    return nothing
+end
+
+function _applynoise_p2!(df, Σ, l1, l2)
+    for col in eachcol(df)
+        for t in 1:length(col)
+            col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc
+            col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+            col[t][2].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][2].qc
+            col[t][2].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+            θ1 = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
+            θ2 = Rotations.rotation_angle(col[t][2].qc)*sign(col[t][2].qc.x)*sign(col[t][2].qc.w) - θ1
+            ω1, ω2 = col[t][1].ωc[1], col[t][2].ωc[1]
+            col[t][1].xc = [0, l1/2*sin(θ1), -l1/2*cos(θ1)]  # Noise is consequence of θ and ω
+            col[t][1].vc = [0, ω1*cos(θ1)*l1/2, ω1*sin(θ1)*l1/2]  # l/2 because measurement is in the center of the pendulum
+            col[t][2].xc = [0, l1*sin(θ1) + l2/2*sin(θ1+θ2), -l1*cos(θ1) - l2/2*cos(θ1+θ2)]  # Noise is consequence of θ and ω
+            col[t][2].vc = [0, l1*cos(θ1)*ω1 + l2/2*cos(θ1 + θ2)*(ω1 + ω2), l1*sin(θ1)*ω1 + l2/2*sin(θ1 + θ2)*(ω1 + ω2)]
+        end
+    end
+    return nothing
+end
+
+function _applynoise_cp!(df, Σ, l)
+    for col in eachcol(df)
+        for t in 1:length(col)
+            col[t][1].xc += Σ["x"]*[0, randn(), 0]  # Cart pos noise only y, no orientation noise
+            col[t][1].vc += Σ["v"]*[0, randn(), 0]  # Same for v
+            col[t][2].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][2].qc
+            col[t][2].ωc += Σ["ω"]*[randn(), 0, 0]
+            θ = Rotations.rotation_angle(col[t][2].qc)*sign(col[t][2].qc.x)*sign(col[t][2].qc.w)  # Signum for axis direction
+            ω = col[t][2].ωc[1]
+            col[t][2].xc = col[t][1].xc + [0, l/2*sin(θ), -l/2*cos(θ)]
+            col[t][2].vc = col[t][1].vc + [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]
+        end
+    end
+    return nothing
+end
+
+function _applynoise_fb!(df, Σ, l)
+    for col in eachcol(df)
+        for t in 1:length(col)
+            col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc
+            col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+            col[t][3].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][3].qc
+            col[t][3].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
+            θ1 = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
+            θ2 = Rotations.rotation_angle(col[t][3].qc)*sign(col[t][3].qc.x)*sign(col[t][3].qc.w)
+            ω1, ω2 = col[t][1].ωc[1], col[t][3].ωc[1]
+            col[t][2].qc = UnitQuaternion(RotX(θ2))
+            col[t][4].qc = UnitQuaternion(RotX(θ1))
+            col[t][1].xc = [0, 0.5sin(θ1)l, -0.5cos(θ1)l]
+            col[t][2].xc = [0, sin(θ1)l + 0.5sin(θ2)l, -cos(θ1)l - 0.5cos(θ2)l]
+            col[t][3].xc = [0, 0.5sin(θ2)l, -0.5cos(θ2)l]
+            col[t][4].xc = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - 0.5cos(θ1)l]
+            col[t][1].vc = [0, 0.5cos(θ1)l*ω1, 0.5sin(θ1)l*ω1]
+            col[t][2].vc = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
+            col[t][3].vc = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
+            col[t][4].vc = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
+            col[t][2].ωc = col[t][3].ωc
+            col[t][4].ωc = col[t][1].ωc
+        end
+    end
+    return nothing
+end

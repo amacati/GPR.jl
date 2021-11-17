@@ -24,16 +24,7 @@ function experimentMeanDynamicsNoisyP1Min(config)
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        for col in eachcol(df)
-            for t in 1:length(col)
-                col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc  # Small error around θ
-                col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-                θ = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
-                ω = col[t][1].ωc[1]
-                col[t][1].xc = [0, l/2*sin(θ), -l/2*cos(θ)]  # Noise is consequence of θ and ω
-                col[t][1].vc = [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]  # l/2 because measurement is in the center of the pendulum
-            end
-        end
+        applynoise!(df, Σ, "P1", l)
     end
 
     # Create train and testsets

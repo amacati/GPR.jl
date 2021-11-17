@@ -24,19 +24,9 @@ function experimentMeanDynamicsNoisyCPMin(config)
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        for col in eachcol(df)
-            for t in 1:length(col)
-                col[t][1].xc += Σ["x"]*[0, randn(), 0]  # Cart pos noise only y, no orientation noise
-                col[t][1].vc += Σ["v"]*[0, randn(), 0]  # Same for v
-                col[t][2].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][2].qc
-                col[t][2].ωc += Σ["ω"]*[randn(), 0, 0]
-                θ = Rotations.rotation_angle(col[t][2].qc)*sign(col[t][2].qc.x)*sign(col[t][2].qc.w)  # Signum for axis direction
-                ω = col[t][2].ωc[1]
-                col[t][2].xc = col[t][1].xc + [0, l/2*sin(θ), -l/2*cos(θ)]
-                col[t][2].vc = col[t][1].vc + [0, ω*cos(θ)*l/2, ω*sin(θ)*l/2]
-            end
-        end
+        applynoise!(df, Σ, "CP", l)
     end
+    
     # Create train and testsets
     xtrain_old = [tocstate(x) for x in traindf.sold]
     xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]

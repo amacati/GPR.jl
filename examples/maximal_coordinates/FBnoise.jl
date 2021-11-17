@@ -17,35 +17,12 @@ function experimentNoisyFBMax(config)
     exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
     mechanism = fourbar(1; Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
-    l = mechanism.bodies[1].shape.xyz[3]
     xtest_old_true = deepcopy([tocstate(x) for x in testdf.sold])  # Without noise
     xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
 
     # Add noise to the dataset
     for df in [traindf, testdf]
-        for col in eachcol(df)
-            for t in 1:length(col)
-                col[t][1].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][1].qc
-                col[t][1].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-                col[t][3].qc = UnitQuaternion(RotX(Σ["q"]*randn())) * col[t][3].qc
-                col[t][3].ωc += Σ["ω"]*[randn(), 0, 0]  # Zero noise in fixed ωy, ωz
-                θ1 = Rotations.rotation_angle(col[t][1].qc)*sign(col[t][1].qc.x)*sign(col[t][1].qc.w)  # Signum for axis direction
-                θ2 = Rotations.rotation_angle(col[t][3].qc)*sign(col[t][3].qc.x)*sign(col[t][3].qc.w)
-                ω1, ω2 = col[t][1].ωc[1], col[t][3].ωc[1]
-                col[t][2].qc = UnitQuaternion(RotX(θ2))
-                col[t][4].qc = UnitQuaternion(RotX(θ1))
-                col[t][1].xc = [0, 0.5sin(θ1)l, -0.5cos(θ1)l]
-                col[t][2].xc = [0, sin(θ1)l + 0.5sin(θ2)l, -cos(θ1)l - 0.5cos(θ2)l]
-                col[t][3].xc = [0, 0.5sin(θ2)l, -0.5cos(θ2)l]
-                col[t][4].xc = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - 0.5cos(θ1)l]
-                col[t][1].vc = [0, 0.5cos(θ1)l*ω1, 0.5sin(θ1)l*ω1]
-                col[t][2].vc = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
-                col[t][3].vc = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
-                col[t][4].vc = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
-                col[t][2].ωc = col[t][3].ωc
-                col[t][4].ωc = col[t][1].ωc
-            end
-        end
+        applynoise!(df, Σ, "FB", mechanism.bodies[1].shape.xyz[3])
     end
 
     # Create train and testsets
