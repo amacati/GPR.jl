@@ -62,9 +62,8 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
     println("Parallel run finished successfully.")
 end
 
-function parallelsim(experiment, config; md = false)
-    etype = "noisy"
-    md && (etype *= "MD")  # Mean dynamics need different ID
+function parallelsim(experiment, config; idmod = "")
+    etype = "noisy" * idmod  # Mean dynamics, sin need different ID
     function checkpointcallback!(checkpoint, config)
         checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
     end

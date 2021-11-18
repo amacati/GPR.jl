@@ -31,7 +31,7 @@ end
 function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
     mechanism = mDynamics.mechanism
     oldstates = getstates(mechanism)
-    mDynamics.coords == "min" && (mDynamics.tfmin !== nothing ? (x = mDynamics.tfmin(x)) : (x = min2maxcoordinates(x, mechanism)))
+    mDynamics.coords == "min" && (mDynamics.tfmin !== nothing ? (x = mDynamics.tfmin(x, mechanism)) : (x = min2maxcoordinates(x, mechanism)))
     setstates!(mechanism, tovstate(x))
     newton!(mechanism)
     if mDynamics.entryID < 4  # v -> 1 2 3, ω -> 4, 5, 6
