@@ -12,9 +12,9 @@ function experimentNoisyP1MinSin(config)
     ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
     m = abs.(1. .+ Σ["m"]randn())
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
-    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
-    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]  # [-π:-π/2; π/2:π] [-π:π]
-    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]  # [-π:-π/2; π/2:π] [-π:π]
+    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
     mechanism = simplependulum2D(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.rh[2]

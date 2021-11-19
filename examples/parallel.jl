@@ -2,7 +2,7 @@ include("utils.jl")
 
 function checkpointgeneric(etype, config, jobid, checkpointcallback!)
     if jobid % 50 == 0
-        println("Processing job $(jobid)/$(config["nruns"])")
+        println("Processing job $(jobid)/$(config["nruns"]), jobID $(config["EXPERIMENT_ID"])")
         lock(config["checkpointlock"])
         try
             checkpoint = Dict()
@@ -59,7 +59,7 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
     end
     finalcallback!(results, config)
     savecheckpoint(etype*"_final", results)
-    println("Parallel run finished successfully.")
+    println("Parallel run $(config["EXPERIMENT_ID"]) finished successfully.")
 end
 
 function parallelsim(experiment, config; idmod = "")

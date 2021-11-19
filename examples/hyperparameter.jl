@@ -50,9 +50,9 @@ function hyperparametersearchP1Max(config, nsamples, _loadcheckpoint=false)
     EXPERIMENT_ID = "P1_MAX"
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
     threadlock = ReentrantLock()
-    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
-    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, threadlock=threadlock)[1]  # [-π:-π/2; π/2:π] [-π:π]
-    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
+    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, ωstart = 2(rand()-0.5), threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
+    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, ωstart = 2(rand()-0.5), threadlock=threadlock)[1]  # [-π:-π/2; π/2:π] [-π:π]
+    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, ωstart = 2(rand()-0.5), threadlock=threadlock)[1]  # Simulate 2 secs from random position, choose one sample
     traindf, testdf = generate_dataframes(config, nsamples, exp1, exp2, exptest, parallel = true)
     mechanism = simplependulum2D(1; Δt=0.01)[2]  # Reset Δt to 0.01 in mechanism
     config = expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)

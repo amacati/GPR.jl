@@ -76,33 +76,33 @@ end
 
 # "nruns" => 100, "Δtsim" => 0.001, "testsamples" => 1000, "simsteps" => 20
 
-config = Dict("nruns" => 1,
+config = Dict("nruns" => 100,
               "Δtsim" => 0.001,
-              "testsamples" => 1,
+              "testsamples" => 1000,
               "simsteps" => 20)
 
-for nsamples in [2] #, 4 , 8, 16, 32, 64, 128, 256, 512]
-    # parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
+for nsamples in [2, 4, 8, 16, 32, 64, 128, 256, 512]
+    parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
     # parallelsim(experimentNoisyP2Max, expand_config("P2_MAX", nsamples, config))
     # parallelsim(experimentNoisyCPMax, expand_config("CP_MAX", nsamples, config))
-    # parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
+    parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
     # parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
     # parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
 
-    # parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config), idmod = "MD")
     # parallelsim(experimentMeanDynamicsNoisyP2Max, expand_config("P2_MAX", nsamples, config), idmod = "MD")
     # parallelsim(experimentMeanDynamicsNoisyCPMax, expand_config("CP_MAX", nsamples, config), idmod = "MD")
-    # parallelsim(experimentMeanDynamicsNoisyP1Min, expand_config("P1_MIN", nsamples, config), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyP1Min, expand_config("P1_MIN", nsamples, config), idmod = "MD")
     # parallelsim(experimentMeanDynamicsNoisyP2Min, expand_config("P2_MIN", nsamples, config), idmod = "MD")
     # parallelsim(experimentMeanDynamicsNoisyCPMin, expand_config("CP_MIN", nsamples, config), idmod = "MD")
     
-    parallelsim(experimentNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "sin")
-    parallelsim(experimentNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "sin")
-    parallelsim(experimentNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "sin")
+    # parallelsim(experimentNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "sin")
+    # parallelsim(experimentNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "sin")
+    # parallelsim(experimentNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "sin")
 
-    parallelsim(experimentMeanDynamicsNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "MDsin")
-    parallelsim(experimentMeanDynamicsNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "MDsin")
-    parallelsim(experimentMeanDynamicsNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "MDsin")
+    # parallelsim(experimentMeanDynamicsNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "MDsin")
+    # parallelsim(experimentMeanDynamicsNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "MDsin")
+    # parallelsim(experimentMeanDynamicsNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "MDsin")
 end
 
 # Fourbar takes way longer 
@@ -115,4 +115,3 @@ for nsamples in [2, 4 , 8, 16, 32, 64, 128, 256, 512]
     # parallelsim(experimentNoisyFBMinSin, expand_config("FB_MIN", nsamples, config), idmod = "sin")
     # parallelsim(experimentMeanDynamicsNoisyFBMinSin, expand_config("FB_MIN", nsamples, config), idmod = "MDsin")
 end
-
