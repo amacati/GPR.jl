@@ -41,11 +41,16 @@ function experimentMeanDynamicsNoisyP2Max(config)
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
     gps = Vector()
+    getμ1(mech) = return mech.bodies[1].state.vsol[2][2]
+    getμ2(mech) = return mech.bodies[1].state.vsol[2][3]
+    getμ3(mech) = return mech.bodies[1].state.ωsol[2][1]
+    getμ4(mech) = return mech.bodies[2].state.vsol[2][2]
+    getμ5(mech) = return mech.bodies[2].state.vsol[2][3]
+    getμ6(mech) = return mech.bodies[2].state.ωsol[2][1]
+    getμs = [getμ1, getμ2, getμ3, getμ4, getμ5, getμ6]
     for (id, yi) in enumerate(ytrain)
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        id in [1, 2, 5] ? bodyID = 1 : bodyID = 2
-        id in [1, 3] ? entryID = 2 : (id in [2, 4] ? entryID = 3 : entryID = 4)
-        mean = MeanDynamics(mechanism, bodyID, entryID)
+        mean = MeanDynamics(mechanism, getμs[id])
         gp = GP(xtrain_old, yi, mean, kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)

@@ -40,7 +40,17 @@ function experimentMeanDynamicsNoisyP1Min(config)
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
     kernel = SEArd(log.(params[2:end]), log(params[1]))
-    gp = GP(xtrain_old, ytrain, MeanDynamics(mechanism, 1, 4, coords = "min"), kernel)
+    function xtransform(x, _)
+        θ, ω = x[1], x[2]
+        q = UnitQuaternion(RotX(θ))
+        xcurr = [0, .5sin(θ)l, -.5cos(θ)l]
+        θnext = θ + ω*0.01
+        xnext = [0, .5sin(θnext)l, -.5cos(θnext)l]
+        v = (xnext - xcurr) / 0.01
+        return [xcurr..., q.w, q.x, q.y, q.z, v..., ω, 0, 0]
+    end
+    getμ(mech) = return mech.bodies[1].state.ωsol[2][1]
+    gp = GP(xtrain_old, ytrain, MeanDynamics(mechanism, getμ, xtransform=xtransform), kernel)
     GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
     
     for i in 1:length(xtest_old)
@@ -58,4 +68,3 @@ function experimentMeanDynamicsNoisyP1Min(config)
     end
     return predictedstates, xtest_future_true
 end
-

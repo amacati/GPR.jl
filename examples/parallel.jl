@@ -38,7 +38,7 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
             result = experiment(config)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         end
         lock(config["resultlock"])
         # Writing the results

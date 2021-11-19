@@ -45,24 +45,28 @@ function experimentMeanDynamicsNoisyFBMin(config)
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
     gps = Vector()
-    function tfmin(x, _)
+    function xtransform(x, _)
         θ1, ω1, θ2, ω2 = x
-        x1 = [0, 0.5sin(θ1)l, -0.5cos(θ1)l]
-        x2 = [0, sin(θ1)l + 0.5sin(θ2)l, -cos(θ1)l - 0.5cos(θ2)l]
-        x3 = [0, 0.5sin(θ2)l, -0.5cos(θ2)l]
-        x4 = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - 0.5cos(θ1)l]
+        x1 = [0, .5sin(θ1)l, -.5cos(θ1)l]
+        x2 = [0, sin(θ1)l + .5sin(θ2)l, -cos(θ1)l - .5cos(θ2)l]
+        x3 = [0, .5sin(θ2)l, -.5cos(θ2)l]
+        x4 = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - .5cos(θ1)l]
         q1 = UnitQuaternion(RotX(θ1))
         qv1 = [q1.w, q1.x, q1.y, q1.z]
         q2 = UnitQuaternion(RotX(θ2))
         qv2 = [q2.w, q2.x, q2.y, q2.z]
-        q3 = UnitQuaternion(RotX(θ2))
-        qv3 = [q3.w, q3.x, q3.y, q3.z]
-        q4 = UnitQuaternion(RotX(θ1))
-        qv4 = [q4.w, q4.x, q4.y, q4.z]
-        v1 = [0, 0.5cos(θ1)l*ω1, 0.5sin(θ1)l*ω1]
-        v2 = [0, cos(θ1)l*ω1 + 0.5cos(θ2)l*ω2, sin(θ1)l*ω1 + 0.5sin(θ2)l*ω2]
-        v3 = [0, 0.5cos(θ2)l*ω2, 0.5sin(θ2)l*ω2]
-        v4 = [0, cos(θ2)l*ω2 + 0.5cos(θ1)l*ω1, sin(θ2)l*ω2 + 0.5sin(θ1)l*ω1]
+        qv3 = qv2
+        qv4 = qv1
+        θ1next = 0.01ω1 + θ1
+        θ2next = 0.01ω2 + θ2
+        x1next = [0, .5sin(θ1next)l, -.5cos(θ1next)l]
+        x2next = [0, sin(θ1next)l + .5sin(θ2next)l, -cos(θ1next)l - .5cos(θ2next)l]
+        x3next = [0, .5sin(θ2next)l, -.5cos(θ2next)l]
+        x4next = [0, sin(θ2next)l + .5sin(θ1next)l, -cos(θ2next)l - .5cos(θ1next)l]
+        v1 = (x1next - x1)/0.01
+        v2 = (x2next - x2)/0.01
+        v3 = (x3next - x3)/0.01
+        v4 = (x4next - x4)/0.01
         ω1 = [ω1, 0, 0]
         ω3 = [ω2, 0, 0]
         ω2 = ω3
@@ -71,10 +75,12 @@ function experimentMeanDynamicsNoisyFBMin(config)
                   x3..., qv3..., v3..., ω3..., x4..., qv4..., v4..., ω4...]
         return cstate
     end
+    getμ1(mech) = return mech.bodies[1].state.ωsol[2][1]
+    getμ2(mech) = return mech.bodies[3].state.ωsol[2][1] + mech.bodies[1].state.ωsol[2][1]
     for (id, yi) in enumerate(ytrain)
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        id == 1 ? bodyID = 1 : bodyID = 3
-        mean = MeanDynamics(mechanism, bodyID, 4, coords="min", tfmin = tfmin)
+        id == 1 ? getμ = getμ1 : getμ = getμ2
+        mean = MeanDynamics(mechanism, getμ, xtransform=xtransform)
         gp = GP(xtrain_old, yi, mean, kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)

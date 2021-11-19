@@ -42,9 +42,26 @@ function experimentMeanDynamicsNoisyP2Min(config)
     predictedstates = Vector{Vector{Float64}}()
     gps = Vector()
     params = config["params"]
+    function xtransform(x, mech)
+        θ1, ω1, θ2, ω2 = x
+        q1, q2 = UnitQuaternion(RotX(θ1)), UnitQuaternion(RotX(θ1+θ2))
+        x1curr = [0, .5sin(θ1)l1, -.5cos(θ1)l1]
+        x2curr = [0, sin(θ1)l1 + .5sin(θ1+θ2)l2, -cos(θ1)l1 - .5cos(θ1+θ2)l2]
+        θ1next = θ1 + ω1*0.01
+        θ2next = θ2 + ω2*0.01
+        x1next = [0, .5sin(θ1next)l1, -.5cos(θ1next)l1]
+        x2next = [0, sin(θ1next)l1 + .5sin(θ1next+θ2next)l2, -cos(θ1next)l1 - .5cos(θ1next+θ2next)l2]
+        v1 = (x1next - x1curr) / 0.01
+        v2 = (x2next - x2curr) / 0.01
+        return [x1curr..., q1.w, q1.x, q1.y, q1.z, v1..., ω1, 0, 0,
+                x2curr..., q2.w, q2.x, q2.y, q2.z, v2..., ω1+ω2, 0, 0]
+    end
+    getμ1(mech) = return mech.bodies[1].state.ωsol[2][1]
+    getμ2(mech) = return mech.bodies[2].state.ωsol[2][1] - mech.bodies[1].state.ωsol[2][1]
     for (id, yi) in enumerate(ytrain)
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        mean = MeanDynamics(mechanism, id, 4, coords = "min")
+        id == 1 ? getμ = getμ1 : getμ = getμ2
+        mean = MeanDynamics(mechanism, getμ, xtransform=xtransform)
         gp = GP(xtrain_old, yi, mean, kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)

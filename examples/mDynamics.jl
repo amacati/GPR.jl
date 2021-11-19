@@ -8,14 +8,11 @@ include("generatedata.jl")
 
 struct MeanDynamics <: GaussianProcesses.Mean 
     mechanism::Mechanism
-    bodyID::Integer
-    entryID::Integer
-    coords::String
-    tfmin::Union{Function, Nothing}
+    getμ::Function
+    xtransform::Function
 
-    function MeanDynamics(mechanism::Mechanism, bodyID::Integer, entryID::Integer; coords::String = "max", 
-                          tfmin = nothing)
-        new(mechanism, bodyID, entryID, coords, tfmin)
+    function MeanDynamics(mechanism::Mechanism, getμ; xtransform=(x, _) -> x)
+        new(mechanism, getμ, xtransform)
     end 
 end
 
@@ -31,14 +28,10 @@ end
 function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
     mechanism = mDynamics.mechanism
     oldstates = getstates(mechanism)
-    mDynamics.coords == "min" && (mDynamics.tfmin !== nothing ? (x = mDynamics.tfmin(x, mechanism)) : (x = min2maxcoordinates(x, mechanism)))
+    x = mDynamics.xtransform(x, mechanism)
     setstates!(mechanism, tovstate(x))
     newton!(mechanism)
-    if mDynamics.entryID < 4  # v -> 1 2 3, ω -> 4, 5, 6
-        μ = mechanism.bodies[mDynamics.bodyID].state.vsol[2][mDynamics.entryID]
-    else
-        μ = mechanism.bodies[mDynamics.bodyID].state.ωsol[2][mDynamics.entryID-3]
-    end
+    μ = mDynamics.getμ(mechanism)
     for (id, state) in enumerate(oldstates)
         mechanism.bodies[id].state = state  # Reset mechanism to default values
     end
