@@ -11,10 +11,11 @@ function experimentMeanDynamicsNoisyP2Max(config)
     Σ = config["Σ"]
     ΔJ = [SMatrix{3,3,Float64}(Σ["J"]randn(9)...), SMatrix{3,3,Float64}(Σ["J"]randn(9)...)]
     m = abs.(ones(2) .+ Σ["m"]randn(2))
+    friction = rand(2)
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
-    exp1 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5) .* [π, 2π], m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
-    exp2 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=[(rand()/2 + 0.5)*rand([-1,1]), 2(rand()-0.5)] .* π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]    # [-π:-π/2; π/2:π] [-π:π]
-    exptest = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5).*2π, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exp1 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5) .* [π, 2π], m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
+    exp2 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=[(rand()/2 + 0.5)*rand([-1,1]), 2(rand()-0.5)] .* π, m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]    # [-π:-π/2; π/2:π] [-π:π]
+    exptest = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5).*2π, m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
     mechanism = doublependulum2D(1; Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     xtest_old_true = deepcopy([tocstate(x) for x in testdf.sold])  # Without noise
@@ -43,9 +44,9 @@ function experimentMeanDynamicsNoisyP2Max(config)
     gps = Vector()
     getμ1(mech) = return mech.bodies[1].state.vsol[2][2]
     getμ2(mech) = return mech.bodies[1].state.vsol[2][3]
-    getμ3(mech) = return mech.bodies[1].state.ωsol[2][1]
-    getμ4(mech) = return mech.bodies[2].state.vsol[2][2]
-    getμ5(mech) = return mech.bodies[2].state.vsol[2][3]
+    getμ3(mech) = return mech.bodies[2].state.vsol[2][2]
+    getμ4(mech) = return mech.bodies[2].state.vsol[2][3]
+    getμ5(mech) = return mech.bodies[1].state.ωsol[2][1]
     getμ6(mech) = return mech.bodies[2].state.ωsol[2][1]
     getμs = [getμ1, getμ2, getμ3, getμ4, getμ5, getμ6]
     for (id, yi) in enumerate(ytrain)

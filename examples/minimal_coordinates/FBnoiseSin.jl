@@ -19,8 +19,7 @@ function experimentNoisyFBMinSin(config)
     mechanism = fourbar(1; Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.xyz[3]
     xtest_curr_true = deepcopy([tocstate(x) for x in testdf.scurr])  # Without noise
-    xtest_curr_true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr_true]
-    xtest_curr_true = [[x[1:2]..., x[1]+x[5], x[2]+x[6]] for x in xtest_curr_true]
+    xtest_curr_true = [max2mincoordinates_fb(cstate) for cstate in xtest_curr_true]
     xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
 
     # Add noise to the dataset
@@ -29,19 +28,16 @@ function experimentNoisyFBMinSin(config)
     end
     # Create train and testsets
     xtrain_old = [tocstate(s) for s in traindf.sold]
-    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
-    xtrain_old = [[s[1:2]..., s[1]+s[5], s[2]+s[6]] for s in xtrain_old]
+    xtrain_old = [max2mincoordinates_fb(cstate) for cstate in xtrain_old]
     xtrain_old = [[sin(s[1]), s[2], sin(s[3]), s[4]] for s in xtrain_old]
     xtrain_curr = [tocstate(s) for s in traindf.scurr]
-    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
-    xtrain_curr = [[s[1:2]..., s[1]+s[5], s[2]+s[6]] for s in xtrain_curr]
+    xtrain_curr = [max2mincoordinates_fb(cstate) for cstate in xtrain_curr]
     xtrain_old = reduce(hcat, xtrain_old)
     ω1 = [s[2] for s in xtrain_curr]
     ω2 = [s[4] for s in xtrain_curr]
     ytrain = [ω1, ω2]
     xtest_old = [tocstate(s) for s in testdf.sold]
-    xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]
-    xtest_old = [[s[1:2]..., s[1]+s[5], s[2]+s[6]] for s in xtest_old]
+    xtest_old = [max2mincoordinates_fb(cstate) for cstate in xtest_old]
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]

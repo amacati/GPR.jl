@@ -11,10 +11,11 @@ function experimentMeanDynamicsNoisyP1Max(config)
     Σ = config["Σ"]
     ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
     m = abs(1. + Σ["m"]randn())
+    friction = rand()
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
-    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
-    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]  # [-π:-π/2; π/2:π] [-π:π]
-    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
+    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
+    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]  # [-π:-π/2; π/2:π] [-π:π]
+    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
     mechanism = simplependulum2D(1, Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     xtest_old_true = deepcopy([tocstate(x) for x in testdf.sold])  # Without noise
@@ -39,8 +40,8 @@ function experimentMeanDynamicsNoisyP1Max(config)
     params = config["params"]
     gps = Vector()
     getμ1(mech) = mech.bodies[1].state.vsol[2][2]
-    getμ2(mech) = mech.bodies[1].state.vsol[2][2]
-    getμ3(mech) = mech.bodies[1].state.vsol[2][2]
+    getμ2(mech) = mech.bodies[1].state.vsol[2][3]
+    getμ3(mech) = mech.bodies[1].state.ωsol[2][1]
     getμs = [getμ1, getμ2, getμ3]
     for (id, yi) in enumerate(ytrain)
         kernel = SEArd(log.(params[2:end]), log(params[1]))

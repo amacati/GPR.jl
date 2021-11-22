@@ -5,50 +5,6 @@ using Rotations
 using DataFrames
 
 
-function loaddata(storage; coordinates="maximal", mechanism = nothing)
-    Nbodies = length(storage.x)
-    Nsamples = length(storage.x[1])
-    X = Vector{SVector{Nbodies*13, Float64}}()
-    for t = 1:Nsamples
-        sample = [[storage.x[id][t]..., storage.q[id][t].w, storage.q[id][t].x, storage.q[id][t].y, storage.q[id][t].z, storage.v[id][t]..., storage.ω[id][t]...]
-                   for id in 1:Nbodies]
-        sample = reduce(vcat, sample)
-        push!(X, sample)
-    end
-    coordinates == "maximal" && return X
-    mechanism === nothing && throw(ArgumentError("Loading data in non-maximal coordinates needs a mechanism argument!"))
-    coordinates == "minimal" && return max2mincoordinates(X, mechanism)
-    throw(ArgumentError("Coordinates setting $coordinates not supported!"))
-end
-
-function _correlated_indices(data::AbstractArray{<:AbstractArray{Float64}}, ϵ)
-    N = length(data[1])
-    correlatedset = Set{Int}()
-    for i in 1:length(data)
-        if i in correlatedset
-            continue
-        end
-        for j in i+1:length(data)
-            if sum((data[i]-data[j]).^2/N) < ϵ
-                push!(correlatedset, j)
-            end
-        end
-    end
-    return sort!(collect(correlatedset))
-end
-
-function cleardata!(data::AbstractArray{<:AbstractArray{Float64}}; ϵ = 1e-2)
-    correlated_indices = _correlated_indices(data, ϵ)
-    deleteat!(data, correlated_indices)
-end
-
-function cleardata!(datacollection::Tuple; ϵ = 1e-2)
-    correlated_indices = _correlated_indices(datacollection[1], ϵ)
-    for data in datacollection
-        deleteat!(data, correlated_indices)
-    end
-end
-
 function max2mincoordinates(cstate::Vector{Float64}, mechanism)
     oldstates = getstates(mechanism)
     states = tostates(cstate)
@@ -88,7 +44,7 @@ function min2maxcoordinates(cstate::AbstractArray, mechanism::Mechanism)
     return maxdata
 end
 
-function simplependulum2D(steps; Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0, ΔJ = SMatrix{3,3,Float64}(zeros(9)...), threadlock = nothing)
+function simplependulum2D(steps; Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0, ΔJ = SMatrix{3,3,Float64}(zeros(9)...), friction = 0, threadlock = nothing)
     joint_axis = [1.0; 0.0; 0.0]
     g = -9.81
     l = 1.0
@@ -109,7 +65,14 @@ function simplependulum2D(steps; Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0
     setPosition!(origin, link1; p2=p2, Δq=q1)
     setVelocity!(origin, link1; p2=p2, Δω=SA[ωstart, 0., 0.])
     initialstates = [deepcopy(body.state) for body in mech.bodies]
-    storage = simulate!(mech, ΔT, record = true)
+    if friction != 0
+        function control!(mech, _)
+            setForce!(mech.bodies[1], τ=-SA[1.,0,0]friction*mech.bodies[1].state.ωc[1])
+        end
+        storage = simulate!(mech, ΔT, control!, record = true)
+    else
+        storage = simulate!(mech, ΔT, record = true)
+    end    
     return storage, mech, initialstates
 end
 
@@ -124,7 +87,7 @@ function _simplependulum2Dmech(r, l, m, ΔJ, joint_axis, p2, g, Δt)
 end
 
 function doublependulum2D(steps; Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.], m = [1., sqrt(2)/2],
-                           ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], threadlock = nothing)
+                           ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], friction = [0,0], threadlock = nothing)
     # Parameters
     l1 = 1.0
     l2 = sqrt(2) / 2
@@ -152,7 +115,15 @@ function doublependulum2D(steps; Δt = 0.01, θstart = [0., 0.], ωstart = [0., 
     setVelocity!(origin, link1; p2=vert11, Δω=SA[ωstart[1], 0., 0.])
     setVelocity!(link1, link2; p1=vert12, p2=vert21, Δω=SA[ωstart[2], 0., 0.])
     initialstates = [deepcopy(body.state) for body in mech.bodies]
-    storage = simulate!(mech, ΔT, record = true)
+    if (any(friction .!= 0))
+        function control!(mech, _)
+            setForce!(mech.bodies[1], τ=-SA[1.,0,0]friction[1]*mech.bodies[1].state.ωc[1])
+            setForce!(mech.bodies[2], τ=-SA[1.,0,0]friction[2]*mech.bodies[2].state.ωc[1])
+        end
+        storage = simulate!(mech, ΔT, control!, record = true)
+    else
+        storage = simulate!(mech, ΔT, record = true)
+    end
     return storage, mech, initialstates
 end
 
@@ -171,7 +142,7 @@ function _doublependulum2Dmech(x, y, l1, l2, m, ΔJ, joint_axis, vert11, vert12,
 end
 
 function cartpole(steps; Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0., m = [1., 1.],
-                   ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], threadlock = nothing)
+                   ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], friction = [0, 0], threadlock = nothing)
     xaxis = [1.0; 0.0; 0.0]
     yaxis = [0.0; 1.0; 0.0]
     g = -9.81
@@ -197,7 +168,15 @@ function cartpole(steps; Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart
     setVelocity!(origin, link1; p2=p01, Δv=SA[0., vstart, 0.])
     setVelocity!(link1, link2; p1=p12, p2=p21, Δω=SA[ωstart, 0., 0.])
     initialstates = [deepcopy(body.state) for body in mech.bodies]
-    storage = simulate!(mech, ΔT, record = true)
+    if (any(friction .!= 0))
+        function control!(mech, _)
+            setForce!(mech.bodies[1], F=-SA[0,1.,0]friction[1]*mech.bodies[1].state.vc[2])
+            setForce!(mech.bodies[2], τ=-SA[1.,0,0]friction[2]*mech.bodies[2].state.ωc[1])
+        end
+        storage = simulate!(mech, ΔT, control!, record = true)
+    else
+        storage = simulate!(mech, ΔT, record = true)
+    end
     return storage, mech, initialstates
 end
 
@@ -215,7 +194,7 @@ function _cartpolemech(x, y, z, r, l, m, ΔJ, xaxis, yaxis, p01, p12, p21, Δt)
     return mech, origin, link1, link2
 end
 
-function fourbar(steps; Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,3,Float64}(zeros(9)...), threadlock = nothing)
+function fourbar(steps; Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,3,Float64}(zeros(9)...), friction = [0,0], threadlock = nothing)
     # Parameters
     ex = [1.;0.;0.]
     l = 1.0
@@ -244,7 +223,15 @@ function fourbar(steps; Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,
     setPosition!(links[1], links[3], p1 = vert11, p2 = vert11, Δq = inv(Δq2) * inv(Δq2))
     setPosition!(links[3], links[4], p1 = vert12, p2 = vert11, Δq = Δq2 * Δq2)
     initialstates = [deepcopy(body.state) for body in mech.bodies]
-    storage = simulate!(mech, ΔT, record = true)
+    if (any(friction .!= 0))
+        function control!(mech, _)
+            setForce!(mech.bodies[1], F=-SA[1.,0,0]friction[1]*mech.bodies[1].state.ωc[1])
+            setForce!(mech.bodies[3], τ=-SA[1.,0,0]friction[2]*mech.bodies[3].state.ωc[1])
+        end
+        storage = simulate!(mech, ΔT, control!, record = true)
+    else
+        storage = simulate!(mech, ΔT, record = true)
+    end
     return storage, mech, initialstates
 end
 
@@ -432,4 +419,18 @@ function _applynoise_fb!(df, Σ, Δtsim, l)
             col[t][4].ωc = col[t][1].ωc
         end
     end
+end
+
+"""
+    Fourbar doesn't work well with the generic max2mincoordinates.
+"""
+function max2mincoordinates_fb(maxstate)
+    minstate = Vector{Float64}(undef, 4)
+    q1 = UnitQuaternion(maxstate[4], maxstate[5:7])
+    q2 = UnitQuaternion(maxstate[30], maxstate[31:33])  # angle 2 is body 3
+    minstate[1] = Rotations.rotation_angle(q1)*sign(q1.x)*sign(q1.w)
+    minstate[2] = maxstate[11]
+    minstate[3] = Rotations.rotation_angle(q2)*sign(q2.x)*sign(q2.w)
+    minstate[4] = maxstate[37]
+    return minstate
 end
