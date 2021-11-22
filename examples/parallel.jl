@@ -38,7 +38,7 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
             result = experiment(config)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         end
         lock(config["resultlock"])
         # Writing the results
@@ -70,11 +70,13 @@ function parallelsim(experiment, config; idmod = "")
         
     function resultcallback!(result, config)
         result[1] !== nothing ? kstep_mse = simulationerror(result[2], result[1]) : kstep_mse = nothing
+        (length(result) == 3 && result[3] !== nothing) ? projectionerror = result[3] : projectionerror = 0
         push!(config["kstep_mse"], kstep_mse)
+        push!(config["projectionerror"], projectionerror)
     end
 
     function finalcallback!(results, config)
-        results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"])
+        results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"], "projectionerror" => config["projectionerror"])
     end
     parallelrun(etype, experiment, config, checkpointcallback!, resultcallback!, finalcallback!)
 end

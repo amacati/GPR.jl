@@ -51,18 +51,20 @@ function experimentNoisyCPMax(config)
         return [predict_y(gp, oldstates)[1][1] for gp in gps]
     end
 
+    projectionerror = 0
     for i in 1:length(xtest_old)
         setstates!(mechanism, tovstate(xtest_old_true[i]))
         oldstates = xtest_old[i]
         for _ in 1:config["simsteps"]
             μ = predict_velocities(gps, reshape(xtest_old[i], :, 1))
             vcurr, ωcurr = [SVector(0, μ[1], 0), SVector(0, μ[2:3]...)], [SVector(zeros(3)...), SVector(μ[4], 0, 0)]
-            projectv!(vcurr, ωcurr, mechanism)
+            vconst, ωconst = projectv!(vcurr, ωcurr, mechanism)
+            projectionerror += norm(vcat(reduce(vcat, vconst .- vcurr), reduce(vcat, ωconst .-ωcurr)))
             foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
             oldstates = getcstate(mechanism)
         end
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
         push!(predictedstates, getcstate(mechanism))  # Extract xnew, write as result
     end
-    return predictedstates, xtest_future_true
+    return predictedstates, xtest_future_true, projectionerror/(length(xtest_old)*config["simsteps"])
 end

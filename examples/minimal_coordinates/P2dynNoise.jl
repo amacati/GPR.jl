@@ -11,7 +11,7 @@ function experimentMeanDynamicsNoisyP2Min(config)
     Σ = config["Σ"]
     ΔJ = [SMatrix{3,3,Float64}(Σ["J"]randn(9)...), SMatrix{3,3,Float64}(Σ["J"]randn(9)...)]
     m = abs.(ones(2) .+ Σ["m"]randn(2))
-    friction = rand(2) .* [1., 1.]
+    friction = rand(2)
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
     exp1 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5) .* [π, 2π], m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
     exp2 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=[(rand()/2 + 0.5)*rand([-1,1]), 2(rand()-0.5)] .* π, m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]    # [-π:-π/2; π/2:π] [-π:π]

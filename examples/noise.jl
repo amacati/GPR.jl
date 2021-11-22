@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 include("utils.jl")
 include("generatedata.jl")
 include("mDynamics.jl")
@@ -67,6 +69,7 @@ function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
                   "simsteps" => config["simsteps"],
                   "nprocessed" => nprocessed,
                   "kstep_mse" => kstep_mse,
+                  "projectionerror" => Vector{Float64}(),
                   "mechanismlock" => ReentrantLock(),
                   "paramlock" => ReentrantLock(),
                   "resultlock" => ReentrantLock(),
@@ -91,7 +94,6 @@ for nsamples in samplesizes
 end
 
 for nsamples in samplesizes
-
     parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
     parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
     parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
