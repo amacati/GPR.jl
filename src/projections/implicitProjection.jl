@@ -1,4 +1,4 @@
-function updateF!(F::AbstractMatrix, mechanism)
+function updateF!(F::AbstractMatrix, mechanism::Mechanism)
     N = length(mechanism.bodies)*6
     for eqc in mechanism.eqconstraints
         L = length(eqc)
@@ -17,7 +17,7 @@ function updateF!(F::AbstractMatrix, mechanism)
     return nothing
 end
 
-function updateS!(s, v, ω)
+function updateS!(s::AbstractArray, v::AbstractArray, ω::AbstractArray)
     N = length(v)
     for (iv, is) in zip(1:N, 1:6:N*6)
         s[is:is+2] = v[iv]
@@ -25,7 +25,7 @@ function updateS!(s, v, ω)
     end
 end
 
-function updateMechanism!(mechanism::Mechanism, s)
+function updateMechanism!(mechanism::Mechanism, s::AbstractArray)
     for (id, body) in enumerate(mechanism.bodies)
         state = body.state
         offset = (id-1)*6
@@ -41,7 +41,7 @@ function updateMechanism!(mechanism::Mechanism, s)
     end
 end
 
-function getvel(s, Nbodies)
+function getvel(s::AbstractArray, Nbodies::Integer)
     v, ω = Vector{SVector{3, Float64}}(), Vector{SVector{3, Float64}}()
     for sid in 1:6:Nbodies*6
         push!(v, SVector{3, Float64}(s[sid:sid+2]))
@@ -50,11 +50,11 @@ function getvel(s, Nbodies)
     return v, ω
 end
 
-function d(s, sᵤ, Gᵥ, Nbodies)
+function d(s::AbstractArray, sᵤ::AbstractArray, Gᵥ::AbstractMatrix, Nbodies::Integer)
     return - sᵤ + s[1:Nbodies*6] + Gᵥ'*s[1+Nbodies*6:end]
 end
 
-function g(mechanism)
+function g(mechanism::Mechanism)
     Ndims = sum([length(eqc) for eqc in mechanism.eqconstraints])
     g = zeros(MVector{Ndims})
     N = 1
@@ -66,7 +66,7 @@ function g(mechanism)
     return g
 end
 
-function resetMechanism!(mechanism, states::Vector{<:ConstrainedDynamics.State})
+function resetMechanism!(mechanism::Mechanism, states::Vector{<:ConstrainedDynamics.State})
     for id in 1:length(mechanism.bodies)
         mechanism.bodies[id].state = deepcopy(states[id])
     end
@@ -74,7 +74,7 @@ function resetMechanism!(mechanism, states::Vector{<:ConstrainedDynamics.State})
     foreach(ConstrainedDynamics.setsolution!, mechanism.bodies)
 end
 
-function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism; newtonIter = 100, ϵ = 1e-10, regularizer = 0.)
+function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism::Mechanism; newtonIter::Integer = 100, ϵ::Real = 1e-10, regularizer::Real = 0.)
     Ndims = sum([length(eqc) for eqc in mechanism.eqconstraints])  # Total dimensionality of constraints
     Nbodies = length(mechanism.bodies)
     F = zeros(Nbodies*6 + Ndims, Nbodies*6 + Ndims)  # 3 vel, 3 ω for each body -> 6

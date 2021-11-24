@@ -1,6 +1,6 @@
 include("utils.jl")
 
-function checkpointgeneric(etype, config, jobid, checkpointcallback!)
+function checkpointgeneric(etype::String, config::Dict, jobid::Integer, checkpointcallback!::Function)
     if jobid % 50 == 0
         println("Processing job $(jobid)/$(config["nruns"]), jobID $(config["EXPERIMENT_ID"])")
         lock(config["checkpointlock"])
@@ -20,7 +20,7 @@ function checkpointgeneric(etype, config, jobid, checkpointcallback!)
     end
 end
 
-function parallelrun(etype, experiment, config, checkpointcallback!::Function, resultcallback!::Function, finalcallback!::Function)
+function parallelrun(etype::String, experiment::Function, config::Dict, checkpointcallback!::Function, resultcallback!::Function, finalcallback!::Function)
     Threads.@threads for jobid in config["nprocessed"]+1:config["nruns"] 
         # Increment nprocessed (threadsafe)
         lock(config["paramlock"])
@@ -33,12 +33,12 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
             unlock(config["paramlock"])
         end
         # Main experiment
-        result = nothing  # Define in outer scope
+        result = nothing  # Define in outer scope to avoid undefined variable in case of experiment failure
         try
             result = experiment(config)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         end
         lock(config["resultlock"])
         # Writing the results
@@ -46,7 +46,7 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
             resultcallback!(result, config)
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         finally
             unlock(config["resultlock"])
         end
@@ -62,39 +62,39 @@ function parallelrun(etype, experiment, config, checkpointcallback!::Function, r
     println("Parallel run $(config["EXPERIMENT_ID"]) finished successfully.")
 end
 
-function parallelsim(experiment, config; idmod = "")
+function parallelsim(experiment::Function, config::Dict; idmod::String = "")
     etype = "noisy" * idmod  # Mean dynamics, sin need different ID
-    function checkpointcallback!(checkpoint, config)
+    function checkpointcallback!(checkpoint::Dict, config::Dict)
         checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
     end
         
-    function resultcallback!(result, config)
+    function resultcallback!(result, config::Dict)
         result[1] !== nothing ? kstep_mse = simulationerror(result[2], result[1]) : kstep_mse = nothing
         (length(result) == 3 && result[3] !== nothing) ? projectionerror = result[3] : projectionerror = 0
         push!(config["kstep_mse"], kstep_mse)
         push!(config["projectionerror"], projectionerror)
     end
 
-    function finalcallback!(results, config)
+    function finalcallback!(results, config::Dict)
         results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "kstep_mse" => config["kstep_mse"], "projectionerror" => config["projectionerror"])
     end
     parallelrun(etype, experiment, config, checkpointcallback!, resultcallback!, finalcallback!)
 end
 
-function parallelsearch(experiment, config)
+function parallelsearch(experiment::Function, config::Dict)
     etype = "params"
 
-    function checkpointcallback!(checkpoint, config)
+    function checkpointcallback!(checkpoint::Dict, config::Dict)
         checkpoint[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "params"=> config["params"], "kstep_mse" => config["kstep_mse"])  # Append to results if any
     end
         
-    function resultcallback!(result, config)
+    function resultcallback!(result, config::Dict)
         result[1] !== nothing ? kstep_mse = simulationerror(result[2], result[1]) : kstep_mse = Inf
         push!(config["kstep_mse"], kstep_mse)
         push!(config["params"], result[3])
     end
 
-    function finalcallback!(results, config)    
+    function finalcallback!(results, config::Dict)    
         results[config["EXPERIMENT_ID"]] = Dict("nprocessed" => config["nprocessed"], "params" => config["params"], "kstep_mse" => config["kstep_mse"])
     end
 

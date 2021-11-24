@@ -19,30 +19,25 @@ function experimentNoisyCPMin(config)
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
     mechanism = cartpole(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     l = mechanism.bodies[2].shape.rh[2]
-    xtest_curr_true = deepcopy([tocstate(x) for x in testdf.scurr])  # Without noise
-    xtest_curr_true = [max2mincoordinates(cstate, mechanism) for cstate in xtest_curr_true]  # Noise free
-    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
 
+    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
     # Add noise to the dataset
     for df in [traindf, testdf]
         applynoise!(df, Σ, "CP", config["Δtsim"], l)
     end
-    
     # Create train and testsets
     xtrain_old = [tocstate(x) for x in traindf.sold]
     xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
     xtrain_curr = [tocstate(x) for x in traindf.scurr]
     xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
     xtrain_old = reduce(hcat, xtrain_old)
-    yv = [s[2] for s in xtrain_curr]
-    yω = [s[4] for s in xtrain_curr]
-    ytrain = [yv, yω]
+    ytrain = [[s[id] for s in xtrain_curr] for id in [2,4]]  # v12, ω21
     xtest_old = [tocstate(x) for x in testdf.sold]
     xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]
 
     predictedstates = Vector{Vector{Float64}}()
     params = config["params"]
-    gps = Vector()
+    gps = Vector{GPE}()
     for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
         gp = GP(xtrain_old, yi, MeanZero(), kernel)
@@ -50,23 +45,9 @@ function experimentNoisyCPMin(config)
         push!(gps, gp)
     end
 
-    function predict_velocities(gps, oldstates)
-        return [predict_y(gp, oldstates)[1][1] for gp in gps]
-    end
-
     for i in 1:length(xtest_old)
-        xold, vold, θold, ωold = xtest_old[i]
-        xcurr, _, θcurr, _ = xtest_curr_true[i]
-        for _ in 1:config["simsteps"]
-            vcurr, ωcurr = predict_velocities(gps, reshape([xold, vold, θold, ωold], :, 1))
-            xold, vold, θold, ωold = xcurr, vcurr, θcurr, ωcurr
-            xcurr = xcurr + vcurr*mechanism.Δt
-            θcurr = θcurr + ωcurr*mechanism.Δt
-        end
-        q = UnitQuaternion(RotX(θcurr))
-        vq = [q.w, q.x, q.y, q.z]
-        cstate = [0, xcurr, 0, 1, zeros(10)..., 0.5l*sin(θcurr)+xcurr, -0.5l*cos(θcurr), vq..., zeros(6)...]
-        push!(predictedstates, cstate)
+        predictedstate = predictdynamicsmin(mechanism, "CP", gps, xtest_old[i], config["simsteps"])
+        push!(predictedstates, predictedstate)
     end
     return predictedstates, xtest_future_true
 end

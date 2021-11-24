@@ -1,6 +1,5 @@
 include("generatedata.jl")
 include("utils.jl")
-include("dataset.jl")
 include("maximal_coordinates/P1param.jl")
 include("maximal_coordinates/P2param.jl")
 include("maximal_coordinates/CPparam.jl")
@@ -12,7 +11,7 @@ include("minimal_coordinates/FBparam.jl")
 include("parallel.jl")
 
 
-function loadcheckpoint_or_defaults(_loadcheckpoint)
+function loadcheckpoint_or_defaults(_loadcheckpoint::Bool)
     nprocessed = 0
     kstep_mse = []
     params = []
@@ -25,7 +24,7 @@ function loadcheckpoint_or_defaults(_loadcheckpoint)
     return nprocessed, kstep_mse, params
 end
 
-function expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsamples, _loadcheckpoint)
+function expand_config(EXPERIMENT_ID::String, config::Dict, mechanism::Mechanism, traindf::DataFrame, testdf::DataFrame, nsamples::Integer, _loadcheckpoint::Bool)
     EXPERIMENT_ID *= string(nsamples)
     nprocessed, kstep_mse, params = loadcheckpoint_or_defaults(_loadcheckpoint)
     config = Dict("EXPERIMENT_ID"=>EXPERIMENT_ID,
@@ -46,7 +45,7 @@ function expand_config(EXPERIMENT_ID, config, mechanism, traindf, testdf, nsampl
     return config
 end
   
-function hyperparametersearchP1Max(config, nsamples, _loadcheckpoint=false)
+function hyperparametersearchP1Max(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "P1_MAX"
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
     threadlock = ReentrantLock()
@@ -59,7 +58,7 @@ function hyperparametersearchP1Max(config, nsamples, _loadcheckpoint=false)
     parallelsearch(experimentP1Max, config)  # Launch multithreaded search
 end
 
-function hyperparametersearchP2Max(config, nsamples, _loadcheckpoint=false)
+function hyperparametersearchP2Max(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "P2_MAX"
     nsteps = 2*Int(1/config["Δtsim"])
     threadlock = ReentrantLock()
@@ -72,7 +71,7 @@ function hyperparametersearchP2Max(config, nsamples, _loadcheckpoint=false)
     parallelsearch(experimentP2Max, config)  # Launch multithreaded search
 end
 
-function hyperparametersearchCPMax(config, nsamples, _loadcheckpoint=false)
+function hyperparametersearchCPMax(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "CP_MAX"
     nsteps = 2*Int(1/config["Δtsim"])
     threadlock = ReentrantLock()
@@ -85,7 +84,7 @@ function hyperparametersearchCPMax(config, nsamples, _loadcheckpoint=false)
     parallelsearch(experimentCPMax, config)
 end
 
-function hyperparametersearchFBMax(config, nsamples, _loadcheckpoint = false)
+function hyperparametersearchFBMax(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "FB_MAX"
     nsteps = 2*Int(1/config["Δtsim"])
     threadlock = ReentrantLock()
@@ -99,7 +98,7 @@ function hyperparametersearchFBMax(config, nsamples, _loadcheckpoint = false)
     parallelsearch(experimentFBMax, config)
 end
 
-function hyperparametersearchP1Min(config, nsamples, _loadcheckpoint=false)
+function hyperparametersearchP1Min(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "P1_MIN"
     nsteps = 2*Int(1/config["Δtsim"])
     threadlock = ReentrantLock()
@@ -112,7 +111,7 @@ function hyperparametersearchP1Min(config, nsamples, _loadcheckpoint=false)
     parallelsearch(experimentP1Min, config)
 end    
 
-function hyperparametersearchP2Min(config, nsamples, _loadcheckpoint=false)
+function hyperparametersearchP2Min(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "P2_MIN"
     nsteps = 2*Int(1/config["Δtsim"])
     threadlock = ReentrantLock()
@@ -125,7 +124,7 @@ function hyperparametersearchP2Min(config, nsamples, _loadcheckpoint=false)
     parallelsearch(experimentP2Min, config)
 end
 
-function hyperparametersearchCPMin(config, nsamples, _loadcheckpoint=false)
+function hyperparametersearchCPMin(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "CP_MIN"
     nsteps = 2*Int(1/config["Δtsim"])
     threadlock = ReentrantLock()
@@ -138,7 +137,7 @@ function hyperparametersearchCPMin(config, nsamples, _loadcheckpoint=false)
     parallelsearch(experimentCPMin, config)
 end
 
-function hyperparametersearchFBMin(config, nsamples, _loadcheckpoint = false)
+function hyperparametersearchFBMin(config::Dict, nsamples::Integer, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = "FB_MIN"
     nsteps = 2*Int(1/config["Δtsim"])
     threadlock = ReentrantLock()

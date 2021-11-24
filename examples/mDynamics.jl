@@ -37,3 +37,14 @@ function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
     end
     return μ
 end
+
+function getμ(id::Integer)
+    bodyid = div(id, 13) + 1
+    stateid = (id - 7) % 13  # 3x, 4q values
+    if stateid in 1:3
+        return _getμv(mechanism) = mechanism.bodies[bodyid].state.vsol[2][stateid]
+    elseif stateid in 4:6
+        return _getμω(mechanism) = mechanism.bodies[bodyid].state.ωsol[2][stateid-3]  # -3 accounts for 3v before ω
+    end
+    throw(ArgumentError("Index $id does not point to v/ω!"))
+end

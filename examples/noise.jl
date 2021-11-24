@@ -3,6 +3,7 @@ using LinearAlgebra
 include("utils.jl")
 include("generatedata.jl")
 include("mDynamics.jl")
+include("predictdynamics.jl")
 
 include("maximal_coordinates/P1noise.jl")
 include("maximal_coordinates/P1dynNoise.jl")
@@ -39,7 +40,7 @@ include("minimal_coordinates/FBdynNoiseSin.jl")
 include("parallel.jl")
 
 
-function loadcheckpoint_or_defaults(_loadcheckpoint)
+function loadcheckpoint_or_defaults(_loadcheckpoint::Bool)
     nprocessed = 0
     kstep_mse = []
     if _loadcheckpoint
@@ -50,15 +51,15 @@ function loadcheckpoint_or_defaults(_loadcheckpoint)
     return nprocessed, kstep_mse
 end
 
-function expand_config(EXPERIMENT_ID, nsamples, config, _loadcheckpoint = false)
+function expand_config(EXPERIMENT_ID::String, nsamples::Integer, config::Dict, _loadcheckpoint::Bool = false)
     EXPERIMENT_ID = EXPERIMENT_ID*string(nsamples)
     nprocessed, kstep_mse = loadcheckpoint_or_defaults(_loadcheckpoint)
     params = Vector{Float64}()  # declare in outer scope
     open(joinpath(dirname(@__FILE__), "config", "config.json"),"r") do f
         params = JSON.parse(f)[EXPERIMENT_ID]
     end
-    Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2, "m" => 1e-1, "J" => 1e-2)
-    # Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0, "m" => 0, "J" => 0)
+    # Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2, "m" => 1e-1, "J" => 1e-2)
+    Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0, "m" => 0, "J" => 0)
     config = Dict("EXPERIMENT_ID" => EXPERIMENT_ID,
                   "Σ" => Σ,
                   "params" => params,
@@ -79,12 +80,12 @@ end
 
 # "nruns" => 100, "Δtsim" => 0.001, "testsamples" => 1000, "simsteps" => 20
 
-config = Dict("nruns" => 100,
+config = Dict("nruns" => 1,
               "Δtsim" => 0.001,
-              "testsamples" => 1000,
+              "testsamples" => 1,
               "simsteps" => 20)
 
-samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+samplesizes = [2]  #, 4, 8, 16, 32, 64, 128, 256, 512]
 
 for nsamples in samplesizes
     parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
