@@ -27,9 +27,12 @@ end
 
 function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
     mechanism = mDynamics.mechanism
-    oldstates = getstates(mechanism)
+    oldstates = getStates(mechanism)
     x = mDynamics.xtransform(x, mechanism)
-    setstates!(mechanism, tovstate(x))
+    cstate = CState(x)
+    setstates!(mechanism, cstate)
+    newton!(mechanism)
+    setstates!(mechanism, cstate)  # Only way to make results consistent. TODO: Ask Jan about this
     newton!(mechanism)
     μ = mDynamics.getμ(mechanism)
     for (id, state) in enumerate(oldstates)

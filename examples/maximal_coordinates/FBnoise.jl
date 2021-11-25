@@ -18,20 +18,19 @@ function experimentNoisyFBMax(config)
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
     mechanism = fourbar(1; Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     
-    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
+    xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
         applynoise!(df, Σ, "FB", config["Δtsim"], mechanism.bodies[1].shape.xyz[3])
     end
     # Create train and testsets
-    xtrain_old = [tocstate(x) for x in traindf.sold]
-    xtrain_curr = [tocstate(x) for x in traindf.scurr]
-    xtrain_old = reduce(hcat, xtrain_old)
+    xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
+    xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 10, 22, 23, 35, 36, 48, 49, 11, 24, 37, 50]  # v12, v13, v22, v23, v32, v33, v42, v43, ω11, ω21, ω31, ω41
     ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
-    xtest_old = [tocstate(x) for x in testdf.sold]
+    xtest_old = [CState(x) for x in testdf.sold]
 
-    predictedstates = Vector{Vector{Float64}}()
+    predictedstates = Vector{CState{Float64,4}}()
     params = config["params"]
     gps = Vector{GPE}()
     for yi in ytrain
@@ -48,5 +47,6 @@ function experimentNoisyFBMax(config)
         push!(predictedstates, predictedstate)
         projectionerror += perror
     end
+
     return predictedstates, xtest_future_true, projectionerror/length(xtest_old)
 end

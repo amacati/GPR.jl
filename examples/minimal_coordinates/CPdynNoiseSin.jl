@@ -20,24 +20,20 @@ function experimentMeanDynamicsNoisyCPMinSin(config)
     mechanism = cartpole(1, Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     l = mechanism.bodies[2].shape.rh[2]
 
-    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
+    xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
         applynoise!(df, Σ, "CP", config["Δtsim"], l)
     end
     # Create train and testsets
-    xtrain_old = [tocstate(x) for x in traindf.sold]
-    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
-    xtrain_old = [[s[1], s[2], sin(s[3]), s[4]] for s in xtrain_old]  # Convert to sin(θ)
-    xtrain_old = reduce(hcat, xtrain_old)
-    xtrain_curr = [tocstate(x) for x in traindf.scurr]
-    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]  # Don't convert, only used for velocities
+    xtrain_old = [max2mincoordinates(CState(x), mechanism) for x in traindf.sold]
+    xtrain_old = reduce(hcat, [[s[1], s[2], sin(s[3]), s[4]] for s in xtrain_old])  # Convert to sin(θ)
+    xtrain_curr = [max2mincoordinates(CState(x), mechanism) for x in traindf.scurr]
     vωindices = [9, 24]
     ytrain = [[s[id] for s in xtrain_curr] for id in [2,4]]  # v12, ω21
-    xtest_old = [tocstate(x) for x in testdf.sold]
-    xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]  # Don't convert, used as is for angle computation
+    xtest_old = [max2mincoordinates(CState(x),mechanism) for x in testdf.sold]
 
-    predictedstates = Vector{Vector{Float64}}()
+    predictedstates = Vector{CState{Float64,2}}()
     params = config["params"]
     gps = Vector{GPE}()
     function xtransform(x, mech)

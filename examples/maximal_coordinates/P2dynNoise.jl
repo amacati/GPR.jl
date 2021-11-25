@@ -19,19 +19,19 @@ function experimentMeanDynamicsNoisyP2Max(config)
     traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
     mechanism = doublependulum2D(1; Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     
-    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
+    xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
         applynoise!(df, Σ, "P2", config["Δtsim"], mechanism.bodies[1].shape.xyz[3], mechanism.bodies[2].shape.xyz[3])
     end
     # Create train and testsets
-    xtrain_old = reduce(hcat, [tocstate(x) for x in traindf.sold])
-    xtrain_curr = [tocstate(x) for x in traindf.scurr]
+    xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
+    xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 10, 22, 23, 11, 24]  # v12, v13, v22, v23, ω11, ω21
     ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
-    xtest_old = [tocstate(x) for x in testdf.sold]
+    xtest_old = [CState(x) for x in testdf.sold]
 
-    predictedstates = Vector{Vector{Float64}}()
+    predictedstates = Vector{CState{Float64,2}}()
     params = config["params"]
     gps = Vector{GPE}()
     for (id, yi) in enumerate(ytrain)

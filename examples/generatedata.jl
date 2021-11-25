@@ -5,9 +5,9 @@ using Rotations
 using DataFrames
 
 
-function max2mincoordinates(cstate::Vector{Float64}, mechanism)
-    oldstates = getstates(mechanism)
-    states = tostates(cstate)
+function max2mincoordinates(cstate::CState, mechanism::Mechanism)
+    oldstates = getStates(mechanism)
+    states = toStates(cstate)
     resetMechanism!(mechanism, states)
     cstate_min = Vector{Float64}()
     for eqc in mechanism.eqconstraints
@@ -18,30 +18,6 @@ function max2mincoordinates(cstate::Vector{Float64}, mechanism)
         mechanism.bodies[id].state = state  # Reset mechanism to default values
     end
     return cstate_min
-end
-
-function min2maxcoordinates(cstate::AbstractArray, mechanism::Mechanism)
-    oldstates = getstates(mechanism)
-    maxdata = Vector{Float64}(undef, 13*length(mechanism.bodies))
-    N = 0
-    for eqc in mechanism.eqconstraints
-        Nc = 6 - sum([length(c) for c in eqc.constraints])
-        ConstrainedDynamics.setPosition!(mechanism, eqc, SVector(cstate[N+1:N+Nc]...))
-        ConstrainedDynamics.setVelocity!(mechanism, eqc, SVector(cstate[N+Nc+1:N+2Nc]...))
-        N += 2Nc
-    end
-    for (id, body) in enumerate(mechanism.bodies)
-        offset = (id-1)*13
-        maxdata[1+offset:3+offset] = body.state.xc
-        q = body.state.qc
-        maxdata[4+offset:7+offset] = [q.w, q.x, q.y, q.z]
-        maxdata[8+offset:10+offset] = body.state.vc
-        maxdata[11+offset:13+offset] = body.state.ωc
-    end
-    for (id, state) in enumerate(oldstates)
-        mechanism.bodies[id].state = state  # Reset mechanism to default values
-    end
-    return maxdata
 end
 
 function simplependulum2D(steps; Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0, ΔJ = SMatrix{3,3,Float64}(zeros(9)...), friction = 0, threadlock = nothing)
@@ -261,18 +237,18 @@ function _generate_dataframes(config, nsamples, exp1, exp2, exptest)
     for _ in 1:div(nsamples, 2)
         storage = exp1()  # Simulate 2 secs from random position, choose one sample
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
-        push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+        push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
     end
     for _ in 1:div(nsamples, 2)
         storage = exp2()
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
-        push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+        push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
     end
     testdf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}(), sfuture = Vector{Vector{State}}())
     for _ in 1:config["testsamples"]
         storage = exptest()  # Simulate 2 secs from random position, choose one sample
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))  # End of storage - required steps
-        push!(testdf, (getstates(storage, j), getstates(storage, j+scaling), getstates(storage, j+scaling*(config["simsteps"]+1))))
+        push!(testdf, (getStates(storage, j), getStates(storage, j+scaling), getStates(storage, j+scaling*(config["simsteps"]+1))))
     end
     return traindf, testdf
 end
@@ -286,7 +262,7 @@ function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
         lock(threadlock)
         try
-            push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+            push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
         finally
             unlock(threadlock)
         end
@@ -296,7 +272,7 @@ function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
         lock(threadlock)
         try
-            push!(traindf, (getstates(storage, j), getstates(storage, j+scaling)))
+            push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
         finally
             unlock(threadlock)
         end
@@ -307,7 +283,7 @@ function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))  # End of storage - required steps
         lock(threadlock)
         try
-            push!(testdf, (getstates(storage, j), getstates(storage, j+scaling), getstates(storage, j+scaling*(config["simsteps"]+1))))
+            push!(testdf, (getStates(storage, j), getStates(storage, j+scaling), getstates(storage, j+scaling*(config["simsteps"]+1))))
         finally
             unlock(threadlock)
         end
@@ -424,13 +400,13 @@ end
 """
     Fourbar doesn't work well with the generic max2mincoordinates.
 """
-function max2mincoordinates_fb(maxstate)
-    minstate = Vector{Float64}(undef, 4)
-    q1 = UnitQuaternion(maxstate[4], maxstate[5:7])
-    q2 = UnitQuaternion(maxstate[30], maxstate[31:33])  # angle 2 is body 3
+function max2mincoordinates_fb(cstate::CState{T,4}) where T
+    minstate = Vector{T}(undef, 4)
+    q1 = UnitQuaternion(cstate[4], cstate[5:7])
+    q2 = UnitQuaternion(cstate[30], cstate[31:33])  # angle 2 is body 3
     minstate[1] = Rotations.rotation_angle(q1)*sign(q1.x)*sign(q1.w)
-    minstate[2] = maxstate[11]
+    minstate[2] = cstate[11]
     minstate[3] = Rotations.rotation_angle(q2)*sign(q2.x)*sign(q2.w)
-    minstate[4] = maxstate[37]
+    minstate[4] = cstate[37]
     return minstate
 end

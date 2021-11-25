@@ -1,4 +1,5 @@
 using LinearAlgebra
+using GPR
 
 include("utils.jl")
 include("generatedata.jl")
@@ -80,9 +81,9 @@ end
 
 # "nruns" => 100, "Δtsim" => 0.001, "testsamples" => 1000, "simsteps" => 20
 
-config = Dict("nruns" => 1,
+config = Dict("nruns" => 100,
               "Δtsim" => 0.001,
-              "testsamples" => 1,
+              "testsamples" => 1000,
               "simsteps" => 20)
 
 samplesizes = [2]  #, 4, 8, 16, 32, 64, 128, 256, 512]

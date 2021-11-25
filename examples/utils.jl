@@ -1,147 +1,56 @@
 using Rotations
 using JSON
-using ConstrainedDynamics: Storage, updatestate!, State, Mechanism, newton!, foreachactive, setsolution!, discretizestate!
+using ConstrainedDynamics: updatestate!, newton!, foreachactive, setsolution!, discretizestate!
 
-function tostate(cstate::Vector{Float64})
-    @assert length(cstate) == 13 ("State size has to be exactly 13")
-    state = State{Float64}()
-    state.xc = SVector(cstate[1:3]...)
-    state.qc = UnitQuaternion(cstate[4], cstate[5:7])
-    state.vc = SVector(cstate[8:10]...)
-    state.ωc = SVector(cstate[11:13]...)
-    return state
-end
 
-function tostates(cstates::Vector{Float64})
-    @assert length(cstates) % 13 == 0 ("State size has to be multiple of 13")
-    nstates = div(length(cstates), 13)
-    states = Vector{State}(undef, nstates)
-    for i in 1:nstates
-        offset = (i-1)*13
+q2vec(q::UnitQuaternion) = return [q.w, q.x, q.y, q.z]
+
+getStates(mechanism::Mechanism) = return [deepcopy(mechanism.bodies[id].state) for id in 1:length(mechanism.bodies)]
+
+function getStates(storage::Storage, i::Int)
+    N = length(storage.x)
+    states = Vector{State{Float64}}(undef, N)
+    for id in 1:N
         state = State{Float64}()
-        state.xc = SVector(cstates[1+offset:3+offset]...)
-        state.qc = UnitQuaternion(cstates[4+offset], cstates[5+offset:7+offset])
-        state.vc = SVector(cstates[8+offset:10+offset]...)
-        state.ωc = SVector(cstates[11+offset:13+offset]...)
-        states[i] = state
+        state.xc = storage.x[id][i]
+        state.qc = storage.q[id][i]
+        state.vc = storage.v[id][i]
+        state.ωc = storage.ω[id][i]
+        states[id] = state
     end
     return states
 end
 
-function tostates(vstates::Vector{Vector{Float64}})
-    return [tostates(cstate)[1] for cstate in vstates]
-end
-
-function tocstate(state::State)
-    return [state.xc..., state.qc.w, state.qc.x, state.qc.y, state.qc.z, state.vc..., state.ωc...]
-end
-
-function tocstate(vstate::Vector{Vector{Float64}})
-    return reduce(vcat, vstate)
-end
-
-function tocstate(states::Vector{State})
-    return reduce(vcat, [tocstate(state) for state in states])
-end
-
-function tovstate(cstates::AbstractVector)
-    @assert length(cstates) % 13 == 0 ("State size has to be multiple of 13")
-    return [cstates[i:i+12] for i in 1:13:length(cstates)]
-end
-
-function getcstate(mechanism::Mechanism)
-    Nbodies = length(mechanism.bodies)
-    cstate = Vector{Float64}(undef, 13*Nbodies)
-    for id in 1:Nbodies
-        offset = (id-1)*13
-        cstate[1+offset:13+offset] = tocstate(mechanism.bodies[id].state)
-    end
-    return cstate
-end
-
-function getcstate(storage::Storage, i)
-    Nbodies = length(storage.x)
-    cstate = Vector{Float64}(undef, 13*Nbodies)
-    for id in 1:Nbodies
-        offset = (id-1)*13
-        cstate[1+offset:13+offset] = [storage.x[id][i]..., storage.q[id][i].w, storage.q[id][i].x, storage.q[id][i].y, storage.q[id][i].z,
-        storage.v[id][i]..., storage.ω[id][i]...]
-    end
-    return cstate
-end
-
-function getvstates(storage::Storage, i)
-    Nbodies = length(storage.x)
-    return [[storage.x[id][i]..., storage.q[id][i].w, storage.q[id][i].x, storage.q[id][i].y, storage.q[id][i].z,
-             storage.v[id][i]..., storage.ω[id][i]...] for id in 1:Nbodies]
-end
-
-function getvstates(mechanism::Mechanism)
-    Nbodies = length(mechanism.bodies)
-    return [tocstate(mechanism.bodies[id].state) for id in 1:Nbodies]
-end
-
-function getstates(mechanism::Mechanism)
-    Nbodies = length(mechanism.bodies)
-    return [deepcopy(mechanism.bodies[id].state) for id in 1:Nbodies]
-end
-
-function getstates(storage::Storage, i::Integer)
-    return tostates(getcstate(storage, i))
-end
-
-function setstates!(mechanism::Mechanism, vstates::Vector{Vector{Float64}})
-    @assert length(vstates) == length(mechanism.bodies) ("State vector size has to be #Nbodies!") 
-    states = tostates(vstates)
-    for id in 1:length(mechanism.bodies)
+function setstates!(mechanism::Mechanism, cstate::CState{T,N}) where {T,N}
+    @assert N == length(mechanism.bodies) ("CState bodies don't match mechanism!") 
+    states = toStates(cstate)
+    for id in 1:N
         mechanism.bodies[id].state = states[id]
     end
     discretizestate!(mechanism)
     foreach(setsolution!, mechanism.bodies)
 end
 
-function overwritestorage(storage::Storage, states, i)
-    @assert length(states) == length(storage.x) ("State vector size has to be #Nbodies!") 
-    for id in 1:length(states)
-        storage.x[id][i] = states[id][1:3]
-        storage.q[id][i] = UnitQuaternion(states[id][4], states[id][5:7])
-        storage.v[id][i] = states[id][8:10]
-        storage.ω[id][i] = states[id][11:13]
+function overwritestorage(storage::Storage, cstate::CState{T,N}, i::Int) where {T,N}
+    @assert N == length(storage.x) ("CState bodies don't match the storage!") 
+    for id in 1:N
+        offset = (id-1)*13
+        storage.x[id][i] = cstate[1+offset:3+offset]
+        storage.q[id][i] = UnitQuaternion(cstate[4+offset], cstate[5+offset:7+offset])
+        storage.v[id][i] = cstate[8+offset:10+offset]
+        storage.ω[id][i] = cstate[11+offset:13+offset]
     end
 end
 
-function simulationerror(groundtruth::Storage, predictions::Storage; stop::Integer = length(predictions.x[1]))
-    @assert 1 <= stop <= length(predictions.x[1])
-    @assert length(groundtruth.x[1]) >= length(predictions.x[1])
-    Nbodies = length(groundtruth.x)
-    error = 0
-    for i in 1:stop
-        # get vector, compute error
-        xtrue = [state[1:3] for state in getvstates(groundtruth, i)]
-        xpred = [state[1:3] for state in getvstates(predictions, i)]
-        for id in 1:Nbodies
-            error += sum((xtrue[id] .- xpred[id]).^2)
-        end
-    end
-    error /= (3*Nbodies*(stop-1))
-    isnan(error) ? (return Inf) : (return error)
-end
-
-function simulationerror(groundtruth::Vector{<:Vector}, predictions::Vector{<:Vector}; stop::Integer = length(predictions))
+function simulationerror(groundtruth::Vector{CState{T,N}}, predictions::Vector{CState{T,N}}; stop::Int = length(predictions)) where {T,N}
     @assert 1 <= stop <= length(predictions)
-    @assert length(groundtruth[1]) % 13 == 0 ("State has to be of length Nbodies*13")
-    @assert length(groundtruth) >= length(predictions)
-    Nbodies = div(length(groundtruth[1]), 13)
+    @assert length(groundtruth) == length(predictions) ("Prediction sample size does not match ground truth!")
     error = 0
-    for i in 1:stop
-        # get vector, compute error
-        xtrue = [state[1:3] for state in tovstate(groundtruth[i])]  # for t+1
-        xpred = [state[1:3] for state in tovstate(predictions[i])]  # for t+1
-        for id in 1:Nbodies
-            error += sum((xtrue[id] .- xpred[id]).^2)
-        end
+    for i in 1:stop, id in 1:N
+        offset = (id-1)*13
+        error += sum((groundtruth[i][1+offset:3+offset] - predictions[i][1+offset:3+offset]).^2)
     end
-    error /= (3*Nbodies*(stop))
+    error /= (3N*(stop))
     isnan(error) ? (return Inf) : (return error)
 end
 

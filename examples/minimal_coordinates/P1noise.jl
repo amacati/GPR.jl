@@ -19,22 +19,18 @@ function experimentNoisyP1Min(config)
     mechanism = simplependulum2D(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     l = mechanism.bodies[1].shape.rh[2]
     
-    xtest_future_true = deepcopy([tocstate(x) for x in testdf.sfuture])
+    xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
         applynoise!(df, Σ, "P1", config["Δtsim"], l)
     end
     # Create train and testsets
-    xtrain_old = [tocstate(x) for x in traindf.sold]
-    xtrain_old = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_old]
-    xtrain_old = reduce(hcat, xtrain_old)
-    xtrain_curr = [tocstate(x) for x in traindf.scurr]
-    xtrain_curr = [max2mincoordinates(cstate, mechanism) for cstate in xtrain_curr]
+    xtrain_old = reduce(hcat, [max2mincoordinates(CState(x), mechanism) for x in traindf.sold])
+    xtrain_curr = [max2mincoordinates(CState(x), mechanism) for x in traindf.scurr]
     ytrain = [s[2] for s in xtrain_curr]
-    xtest_old = [tocstate(x) for x in testdf.sold]
-    xtest_old = [max2mincoordinates(cstate, mechanism) for cstate in xtest_old]
+    xtest_old = [max2mincoordinates(CState(x),mechanism) for x in testdf.sold]
 
-    predictedstates = Vector{Vector{Float64}}()
+    predictedstates = Vector{CState{Float64,1}}()
     params = config["params"]
     kernel = SEArd(log.(params[2:end]), log(params[1]))
     gp = GP(xtrain_old, ytrain, MeanZero(), kernel)
@@ -45,5 +41,6 @@ function experimentNoisyP1Min(config)
         predictedstate = predictdynamicsmin(mechanism, "P1", gps, xtest_old[i], config["simsteps"])
         push!(predictedstates, predictedstate)
     end
+
     return predictedstates, xtest_future_true
 end

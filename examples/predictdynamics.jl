@@ -1,18 +1,18 @@
-function predictdynamics(mechanism::Mechanism, gps::Vector{<:GPE}, startobservation::Vector{Float64}, steps::Integer, getvω::Function; regularizer::Real = 0.)
+function predictdynamics(mechanism::Mechanism, gps::Vector{<:GPE}, startobservation::CState, steps::Integer, getvω::Function; regularizer::Real = 0.)
     projectionerror = 0
     oldstates = startobservation
-    setstates!(mechanism, tovstate(oldstates))
+    setstates!(mechanism, oldstates)
     for _ in 1:steps
-        obs = reshape(oldstates, :, 1)
+        obs = reshape(oldstates.state, :, 1)
         μ = [predict_y(gp, obs)[1][1] for gp in gps]
         vcurr, ωcurr = getvω(μ)
         vconst, ωconst = projectv!(vcurr, ωcurr, mechanism, regularizer=regularizer)
         projectionerror += norm(vcat(reduce(vcat, vconst .- vcurr), reduce(vcat, ωconst .-ωcurr)))
         foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xcurr, vcurr
-        oldstates = getcstate(mechanism)
+        oldstates = CState(mechanism)
     end
     foreachactive(updatestate!, mechanism.bodies, mechanism.Δt)  # Now at xnew, undef
-    return getcstate(mechanism), projectionerror/steps
+    return CState(mechanism), projectionerror/steps
 end
 
 function predictdynamicsmin(mechanism::Mechanism, etype::String, gps::Vector{<:GPE}, startobservation::Vector{Float64}, steps::Integer; usesin::Bool = false)
@@ -33,9 +33,8 @@ function _predictdynamicsp1min(mechanism, gps, startobservation, steps, usesin)
         θold, ωold = θcurr, ωcurr
         θcurr = θcurr + ωcurr*mechanism.Δt
     end
-    q1 = UnitQuaternion(RotX(θcurr))
-    vq1 = [q1.w, q1.x, q1.y, q1.z]
-    return [0, 0.5l*sin(θcurr), -0.5l*cos(θcurr), vq1..., zeros(6)...]
+    q = UnitQuaternion(RotX(θcurr))
+    return CState([0, 0.5l*sin(θcurr), -0.5l*cos(θcurr), q2vec(q)..., zeros(6)...])
 end
 
 function _predictdynamicsp2min(mechanism, gps, startobservation, steps, usesin)
@@ -50,9 +49,9 @@ function _predictdynamicsp2min(mechanism, gps, startobservation, steps, usesin)
         θ2curr = θ2curr + ω2curr*mechanism.Δt
     end
     q1, q2 = UnitQuaternion(RotX(θ1curr)), UnitQuaternion(RotX(θ1curr + θ2curr))
-    vq1, vq2 = [q1.w, q1.x, q1.y, q1.z], [q2.w, q2.x, q2.y, q2.z]
-    return [0, 0.5l1*sin(θ1curr), -0.5l1*cos(θ1curr), vq1..., zeros(6)...,
-            0, l1*sin(θ1curr) + 0.5l2*sin(θ1curr+θ2curr), -l1*cos(θ1curr) - 0.5l2*cos(θ1curr + θ2curr), vq2..., zeros(6)...]
+    x1 = [0, 0.5l1*sin(θ1curr), -0.5l1*cos(θ1curr)]
+    x2 = [0, l1*sin(θ1curr) + 0.5l2*sin(θ1curr+θ2curr), -l1*cos(θ1curr) - 0.5l2*cos(θ1curr + θ2curr)]
+    return CState([x1..., q2vec(q1)..., zeros(6)..., x2..., q2vec(q2)..., zeros(6)...])
 end
 
 function _predictdynamicscpmin(mechanism, gps, startobservation, steps, usesin)
@@ -67,8 +66,7 @@ function _predictdynamicscpmin(mechanism, gps, startobservation, steps, usesin)
         θcurr = θcurr + ωcurr*mechanism.Δt
     end
     q = UnitQuaternion(RotX(θcurr))
-    vq = [q.w, q.x, q.y, q.z]
-    return [0, xcurr, 0, 1, zeros(10)..., 0.5l*sin(θcurr)+xcurr, -0.5l*cos(θcurr), vq..., zeros(6)...]
+    return CState([0, xcurr, 0, 1, zeros(10)..., 0.5l*sin(θcurr)+xcurr, -0.5l*cos(θcurr), q2vec(q)..., zeros(6)...])
 end
 
 function _predictdynamicsfbmin(mechanism, gps, startobservation, steps, usesin)
@@ -87,8 +85,6 @@ function _predictdynamicsfbmin(mechanism, gps, startobservation, steps, usesin)
     x3 = [0, .5sin(θ2curr)l, -.5cos(θ2curr)l]
     x4 = [0, sin(θ2curr)l + 0.5sin(θ1curr)l, -cos(θ2curr)l - .5cos(θ1curr)l]
     q1 = UnitQuaternion(RotX(θ1curr))
-    vq1 = [q1.w, q1.x, q1.y, q1.z]
     q2 = UnitQuaternion(RotX(θ2curr))
-    vq2 = [q2.w, q2.x, q2.y, q2.z]
-    return [x1..., vq1..., zeros(6)..., x2..., vq2..., zeros(6)..., x3..., vq2..., zeros(6)..., x4..., vq1..., zeros(6)...]
+    return CState([x1..., q2vec(q1)..., zeros(6)..., x2..., q2vec(q2)..., zeros(6)..., x3..., q2vec(q2)..., zeros(6)..., x4..., q2vec(q1)..., zeros(6)...])
 end

@@ -9,20 +9,20 @@ using Statistics
 
 function experimentP1Max(config)
     mechanism = deepcopy(config["mechanism"])
-    # Sample from dataset
-    xtrain_old = reduce(hcat, [tocstate(x) for x in config["traindf"].sold])
-    xtrain_curr = [tocstate(x) for x in config["traindf"].scurr]
+    # Sample from dataset    
+    xtrain_old = reduce(hcat, [CState(x) for x in config["traindf"].sold])
+    xtrain_curr = [CState(x) for x in config["traindf"].scurr]
     vωindices = [9, 10, 11]
-    ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
-    xtest_old = [tocstate(x) for x in config["testdf"].sold]
-    xtest_future = [tocstate(x) for x in config["testdf"].sfuture]
-    
+    ytrain = [[cs[i] for cs in xtrain_curr] for i in vωindices]
+    xtest_old = [CState(x) for x in config["testdf"].sold]
+    xtest_future = [CState(x) for x in config["testdf"].sfuture]
+
     stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000
     params = [100., (10 ./(stdx))...]
     params = params .+ (5rand(length(params)) .- 0.999) .* params
 
-    predictedstates = Vector{Vector{Float64}}()
+    predictedstates = Vector{CState{Float64,1}}()
     gps = Vector{GPE}()
     for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))
