@@ -1,6 +1,6 @@
 using Rotations
 using JSON
-using ConstrainedDynamics: updatestate!, newton!, foreachactive, setsolution!, discretizestate!
+using ConstrainedDynamics: Mechanism, Storage, State, updatestate!, newton!, foreachactive, setsolution!, discretizestate!
 
 
 q2vec(q::UnitQuaternion) = return [q.w, q.x, q.y, q.z]
