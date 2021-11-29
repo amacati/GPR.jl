@@ -7,22 +7,16 @@ using LineSearches
 using Statistics
 
 
-function experimentMeanDynamicsNoisyP1Max(config)
-    Σ = config["Σ"]
-    ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
-    m = abs(1. + Σ["m"]randn())
-    friction = rand()
-    nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
-    exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
-    exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]  # [-π:-π/2; π/2:π] [-π:π]
-    exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, ωstart = 2(rand()-0.5), m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
-    traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
+function experimentMeanDynamicsNoisyP1Max(config, id)
+    traindfs, testdfs = loaddatasets("P1friction")
+    traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]
+    testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
     mechanism = simplependulum2D(1, Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "P1", config["Δtsim"], mechanism.bodies[1].shape.rh[2])
+        applynoise!(df, config["Σ"], "P1", config["Δtsim"], mechanism.bodies[1].shape.rh[2])
     end
     # Create train and testsets
     xtrain_old = reduce(hcat, [CState(sv) for sv in traindf.sold])

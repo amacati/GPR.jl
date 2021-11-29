@@ -7,22 +7,16 @@ using LineSearches
 using Statistics
 
 
-function experimentMeanDynamicsNoisyFBMax(config)
-    Σ = config["Σ"]
-    ΔJ = SMatrix{3,3,Float64}(Σ["J"]randn(9)...)
-    m = abs.(1 .+ Σ["m"]randn())
-    friction = rand(2) .* [4., 4.]
-    nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
-    exp1 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
-    exp2 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
-    exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, m = m, ΔJ = ΔJ, friction=friction, threadlock = config["mechanismlock"])[1]
-    traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
+function experimentMeanDynamicsNoisyFBMax(config, id)
+    traindfs, testdfs = loaddatasets("FBfriction")
+    traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]
+    testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
     mechanism = fourbar(1; Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
     
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "FB", config["Δtsim"], mechanism.bodies[1].shape.xyz[3])
+        applynoise!(df, config["Σ"], "FB", config["Δtsim"], mechanism.bodies[1].shape.xyz[3])
     end
     # Create train and testsets
     xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])

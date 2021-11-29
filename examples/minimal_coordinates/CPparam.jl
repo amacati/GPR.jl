@@ -8,7 +8,7 @@ using Statistics
 using JSON
 
 
-function experimentCPMin(config)
+function experimentCPMin(config, _)
     mechanism = deepcopy(config["mechanism"])
     l = mechanism.bodies[2].shape.rh[2]
     # Sample from dataset

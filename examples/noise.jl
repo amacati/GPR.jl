@@ -3,6 +3,7 @@ using GPR
 
 include("utils.jl")
 include("generatedata.jl")
+include("generate_datasets.jl")
 include("mDynamics.jl")
 include("predictdynamics.jl")
 
@@ -59,8 +60,8 @@ function expand_config(EXPERIMENT_ID::String, nsamples::Integer, config::Dict, _
     open(joinpath(dirname(@__FILE__), "config", "config.json"),"r") do f
         params = JSON.parse(f)[EXPERIMENT_ID]
     end
-    Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2, "m" => 1e-1, "J" => 1e-2)
-    # Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0, "m" => 0, "J" => 0)
+    Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2)
+    # Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0)
     config = Dict("EXPERIMENT_ID" => EXPERIMENT_ID,
                   "Σ" => Σ,
                   "params" => params,
@@ -81,42 +82,47 @@ end
 
 # "nruns" => 100, "Δtsim" => 0.001, "testsamples" => 1000, "simsteps" => 20
 
-config = Dict("nruns" => 100,
+config = Dict("nruns" => 1,
               "Δtsim" => 0.001,
-              "testsamples" => 1000,
+              "testsamples" => 1,
               "simsteps" => 20)
 
-samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+samplesizes = [2] # , 4, 8, 16, 32, 64, 128, 256, 512]
 
 for nsamples in samplesizes
-    #parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
-    #parallelsim(experimentNoisyP2Max, expand_config("P2_MAX", nsamples, config))
-    #parallelsim(experimentNoisyCPMax, expand_config("CP_MAX", nsamples, config))
-    #parallelsim(experimentNoisyFBMax, expand_config("FB_MAX", nsamples, config))
+    @info "Processing maxc noise experiments"
+    parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
+    parallelsim(experimentNoisyP2Max, expand_config("P2_MAX", nsamples, config))
+    parallelsim(experimentNoisyCPMax, expand_config("CP_MAX", nsamples, config))
+    parallelsim(experimentNoisyFBMax, expand_config("FB_MAX", nsamples, config))
 end
 
 for nsamples in samplesizes
-    #parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
-    #parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
-    #parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
-    #parallelsim(experimentNoisyFBMin, expand_config("FB_MIN", nsamples, config))
+    @info "Processing minc noise experiments"
+    parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
+    parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
+    parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
+    parallelsim(experimentNoisyFBMin, expand_config("FB_MIN", nsamples, config))
 end
 
 for nsamples in samplesizes
-    #parallelsim(experimentNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "sin")
-    #parallelsim(experimentNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "sin")
-    #parallelsim(experimentNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "sin")
-    #parallelsim(experimentNoisyFBMinSin, expand_config("FB_MIN", nsamples, config), idmod = "sin")
+    @info "Processing minc sin noise experiments"
+    parallelsim(experimentNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "sin")
+    parallelsim(experimentNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "sin")
+    parallelsim(experimentNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "sin")
+    parallelsim(experimentNoisyFBMinSin, expand_config("FB_MIN", nsamples, config), idmod = "sin")
 end
 
 for nsamples in samplesizes
-    #parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config), idmod = "MD")
-    #parallelsim(experimentMeanDynamicsNoisyP2Max, expand_config("P2_MAX", nsamples, config), idmod = "MD")
-    #parallelsim(experimentMeanDynamicsNoisyCPMax, expand_config("CP_MAX", nsamples, config), idmod = "MD")
-    #parallelsim(experimentMeanDynamicsNoisyFBMax, expand_config("FB_MAX", nsamples, config), idmod = "MD")
+    @info "Processing maxc dynamics experiments"
+    parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyP2Max, expand_config("P2_MAX", nsamples, config), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyCPMax, expand_config("CP_MAX", nsamples, config), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyFBMax, expand_config("FB_MAX", nsamples, config), idmod = "MD")
 end
 
 for nsamples in samplesizes
+    @info "Processing minc dynamics experiments"
     parallelsim(experimentMeanDynamicsNoisyP1Min, expand_config("P1_MIN", nsamples, config), idmod = "MD")
     parallelsim(experimentMeanDynamicsNoisyP2Min, expand_config("P2_MIN", nsamples, config), idmod = "MD")
     parallelsim(experimentMeanDynamicsNoisyCPMin, expand_config("CP_MIN", nsamples, config), idmod = "MD")
@@ -124,6 +130,7 @@ for nsamples in samplesizes
 end
 
 for nsamples in samplesizes
+    @info "Processing minc sin dynamics experiments"
     parallelsim(experimentMeanDynamicsNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "MDsin")
     parallelsim(experimentMeanDynamicsNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "MDsin")
     parallelsim(experimentMeanDynamicsNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "MDsin")

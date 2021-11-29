@@ -7,7 +7,7 @@ using LineSearches
 using Statistics
 
 
-function experimentP1Max(config)
+function experimentP1Max(config, _)
     mechanism = deepcopy(config["mechanism"])
     # Sample from dataset    
     xtrain_old = reduce(hcat, [CState(x) for x in config["traindf"].sold])

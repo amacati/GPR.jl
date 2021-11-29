@@ -258,7 +258,16 @@ function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
     traindf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}())
     threadlock = ReentrantLock()  # Push to df not atomic
     Threads.@threads for _ in 1:div(nsamples, 2)
-        storage = exp1()  # Simulate 2 secs from random position, choose one sample
+        storage = nothing
+        while true  # Retry experiment if simulation fails
+            try
+                storage = exp1()  # Simulate 2 secs from random position, choose one sample
+            catch
+                @warn "Experiment failed, retrying..."
+                continue
+            end
+            break
+        end
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
         lock(threadlock)
         try
@@ -268,7 +277,16 @@ function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
         end
     end
     Threads.@threads for _ in 1:div(nsamples, 2)
-        storage = exp2()
+        storage = nothing
+        while true  # Retry experiment if simulation fails
+            try
+                storage = exp2()  # Simulate 2 secs from random position, choose one sample
+            catch
+                @warn "Experiment failed, retrying..."
+                continue
+            end
+            break
+        end
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
         lock(threadlock)
         try
@@ -279,11 +297,20 @@ function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
     end
     testdf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}(), sfuture = Vector{Vector{State}}())
     Threads.@threads for _ in 1:config["testsamples"]
-        storage = exptest()  # Simulate 2 secs from random position, choose one sample
+        storage = nothing
+        while true  # Retry experiment if simulation fails
+            try
+                storage = exptest()  # Simulate 2 secs from random position, choose one sample
+            catch
+                @warn "Experiment failed, retrying..."
+                continue
+            end
+            break
+        end
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))  # End of storage - required steps
         lock(threadlock)
         try
-            push!(testdf, (getStates(storage, j), getStates(storage, j+scaling), getstates(storage, j+scaling*(config["simsteps"]+1))))
+            push!(testdf, (getStates(storage, j), getStates(storage, j+scaling), getStates(storage, j+scaling*(config["simsteps"]+1))))
         finally
             unlock(threadlock)
         end

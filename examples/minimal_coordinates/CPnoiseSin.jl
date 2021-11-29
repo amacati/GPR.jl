@@ -8,22 +8,19 @@ using Statistics
 using JSON
 
 
-function experimentNoisyCPMinSin(config)
-    Σ = config["Σ"]
-    ΔJ = [SMatrix{3,3,Float64}(Σ["J"]randn(9)...), SMatrix{3,3,Float64}(Σ["J"]randn(9)...)]
-    m = abs.(ones(2) .+ Σ["m"]randn(2))
-    nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
-    exp1 = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=(rand()-0.5)π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
-    exp2 = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=(rand()/2+0.5)*rand([-1,1])π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
-    exptest = () -> cartpole(nsteps, Δt=config["Δtsim"], θstart=2π*(rand()-0.5), vstart=2(rand()-0.5), ωstart=2(rand()-0.5), m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[1]
-    traindf, testdf = generate_dataframes(config, config["nsamples"], exp1, exp2, exptest)
+function experimentNoisyCPMinSin(config, id)
+    traindfs, testdfs = loaddatasets("CP")
+    ΔJ = traindfs.ΔJ[id]
+    m = traindfs.m[id]
+    traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]
+    testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
     mechanism = cartpole(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     l = mechanism.bodies[2].shape.rh[2]
 
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, Σ, "CP", config["Δtsim"], l)
+        applynoise!(df, config["Σ"], "CP", config["Δtsim"], l)
     end
     # Create train and testsets
     xtrain_old = [max2mincoordinates(CState(x), mechanism) for x in traindf.sold]

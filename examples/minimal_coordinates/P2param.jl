@@ -7,7 +7,7 @@ using LineSearches
 using Statistics
 
 
-function experimentP2Min(config)
+function experimentP2Min(config, _)
     mechanism = deepcopy(config["mechanism"])
     # Sample from dataset
     xtrain_old = reduce(hcat, [max2mincoordinates(CState(x),mechanism) for x in config["traindf"].sold])

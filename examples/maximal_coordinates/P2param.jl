@@ -8,7 +8,7 @@ using Statistics
 using DataFrames
 
 
-function experimentP2Max(config)
+function experimentP2Max(config, _)
     mechanism = deepcopy(config["mechanism"])
     # Sample from dataset
     xtrain_old = reduce(hcat, [tocstate(x) for x in config["traindf"].sold])

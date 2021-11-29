@@ -7,7 +7,7 @@ using LineSearches
 using Statistics
 
 
-function experimentFBMin(config)
+function experimentFBMin(config, _)
     mechanism = deepcopy(config["mechanism"])
     l = mechanism.bodies[1].shape.xyz[3]
     # Sample from dataset

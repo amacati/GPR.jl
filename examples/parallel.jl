@@ -35,7 +35,7 @@ function parallelrun(etype::String, experiment::Function, config::Dict, checkpoi
         # Main experiment
         result = nothing  # Define in outer scope to avoid undefined variable in case of experiment failure
         try
-            result = experiment(config)  # GaussianProcesses.optimize! spams exceptions
+            result = experiment(config, jobid)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
             throw(e)
