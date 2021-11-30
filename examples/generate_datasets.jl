@@ -11,7 +11,8 @@ function generateP1dataset(config::Dict; friction::Bool=false)
     testdf = DataFrame(df = Vector{DataFrame}(), m = Vector{Float64}(), ΔJ = Vector{SMatrix}(), friction = Vector{Float64}())
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
     threadlock = ReentrantLock()
-    for _ in 1:config["Ndfs"]
+    for i in 1:config["Ndfs"]
+        @info ("Working on $(i)/$(config["Ndfs"])")
         frict = friction ? rand() : 0.
         ΔJ = SMatrix{3,3,Float64}(config["Σ"]["J"]randn(9)...)
         m = abs(1. + config["Σ"]["m"]randn())
@@ -30,7 +31,8 @@ function generateP2dataset(config; friction=false)
     testdf = DataFrame(df = Vector{DataFrame}(), m = Vector{Vector{Float64}}(), ΔJ = Vector{Vector{SMatrix}}(), friction = Vector{Vector{Float64}}())
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
     threadlock = ReentrantLock()
-    for _ in 1:config["Ndfs"]
+    for i in 1:config["Ndfs"]
+        @info ("Working on $(i)/$(config["Ndfs"])")
         frict = friction ? rand(2) : [0., 0.]
         ΔJ = [SMatrix{3,3,Float64}(config["Σ"]["J"]randn(9)...), SMatrix{3,3,Float64}(config["Σ"]["J"]randn(9)...)]
         m = abs.(ones(2) .+ config["Σ"]["m"]randn(2))
@@ -49,7 +51,8 @@ function generateCPdataset(config; friction=false)
     testdf = DataFrame(df = Vector{DataFrame}(), m = Vector{Vector{Float64}}(), ΔJ = Vector{Vector{SMatrix}}(), friction = Vector{Vector{Float64}}())
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
     threadlock = ReentrantLock()
-    for _ in 1:config["Ndfs"]
+    for i in 1:config["Ndfs"]
+        @info ("Working on $(i)/$(config["Ndfs"])")
         ΔJ = [SMatrix{3,3,Float64}(config["Σ"]["J"]randn(9)...), SMatrix{3,3,Float64}(config["Σ"]["J"]randn(9)...)]
         m = abs.(ones(2) .+ config["Σ"]["m"]randn(2))
         frict = friction ? rand(2) .* [4., 0.3] : [0., 0.]
@@ -69,7 +72,8 @@ function generateFBdataset(config; friction=false)
     testdf = DataFrame(df = Vector{DataFrame}(), m = Vector{Float64}(), ΔJ = Vector{SMatrix}(), friction = Vector{Vector{Float64}}())
     nsteps = 2*Int(1/config["Δtsim"])  # Equivalent to 2 seconds
     threadlock = ReentrantLock()
-    for _ in 1:config["Ndfs"]
+    for i in 1:config["Ndfs"]
+        @info ("Working on $(i)/$(config["Ndfs"])")
         ΔJ = SMatrix{3,3,Float64}(config["Σ"]["J"]randn(9)...)
         m = abs.(1 .+ config["Σ"]["m"]randn())
         frict = friction ? rand(2) .* [4., 4.] : [0., 0.]
@@ -105,7 +109,7 @@ end
 
 function getconfig()
     Σ = Dict("m" => 1e-1, "J" => 1e-2)
-    config = Dict("Δtsim" => 0.001, "Ndfs" => 10, "trainsamples" => 20, "testsamples" => 1, "simsteps" => 20, "Σ" => Σ)
+    config = Dict("Δtsim" => 0.001, "Ndfs" => 100, "trainsamples" => 1000, "testsamples" => 1000, "simsteps" => 20, "Σ" => Σ)
     return config
 end
 
@@ -125,3 +129,5 @@ function main()
         @info ("Completed dataset $id")
     end
 end
+
+# main()

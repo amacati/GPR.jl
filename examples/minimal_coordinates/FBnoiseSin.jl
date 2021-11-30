@@ -8,7 +8,7 @@ using Statistics
 
 
 function experimentNoisyFBMinSin(config, id)
-    traindfs, testdfs = loaddatasets("FB")
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
     ΔJ = traindfs.ΔJ[id]
     m = traindfs.m[id]
     traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]

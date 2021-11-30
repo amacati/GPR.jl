@@ -2,7 +2,7 @@ include("utils.jl")
 
 function checkpointgeneric(etype::String, config::Dict, jobid::Integer, checkpointcallback!::Function)
     if jobid % 50 == 0
-        println("Processing job $(jobid)/$(config["nruns"]), jobID $(config["EXPERIMENT_ID"])")
+        @info ("Main Thread: Processing job $(jobid)/$(config["nruns"]), jobID $(config["EXPERIMENT_ID"])")
         lock(config["checkpointlock"])
         try
             checkpoint = Dict()
@@ -38,7 +38,7 @@ function parallelrun(etype::String, experiment::Function, config::Dict, checkpoi
             result = experiment(config, jobid)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         end
         lock(config["resultlock"])
         # Writing the results
@@ -46,7 +46,7 @@ function parallelrun(etype::String, experiment::Function, config::Dict, checkpoi
             resultcallback!(result, config)
         catch e
             display(e)
-            throw(e)
+            # throw(e)
         finally
             unlock(config["resultlock"])
         end
@@ -59,7 +59,7 @@ function parallelrun(etype::String, experiment::Function, config::Dict, checkpoi
     end
     finalcallback!(results, config)
     savecheckpoint(etype*"_final", results)
-    println("Parallel run $(config["EXPERIMENT_ID"]) finished successfully.")
+    @info ("Main Thread: Parallel run $(config["EXPERIMENT_ID"]) finished successfully.")
 end
 
 function parallelsim(experiment::Function, config::Dict; idmod::String = "")

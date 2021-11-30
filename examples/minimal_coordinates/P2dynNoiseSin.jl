@@ -8,7 +8,7 @@ using Statistics
 
 
 function experimentMeanDynamicsNoisyP2MinSin(config, id)
-    traindfs, testdfs = loaddatasets("P2friction")
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
     traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]
     testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]    
     mechanism = doublependulum2D(1; Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism

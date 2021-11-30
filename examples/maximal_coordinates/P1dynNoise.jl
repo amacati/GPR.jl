@@ -8,7 +8,7 @@ using Statistics
 
 
 function experimentMeanDynamicsNoisyP1Max(config, id)
-    traindfs, testdfs = loaddatasets("P1friction")
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
     traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]
     testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
     mechanism = simplependulum2D(1, Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism. Assume perfect knowledge of J and M
