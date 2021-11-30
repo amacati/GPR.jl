@@ -109,7 +109,7 @@ end
 
 function getconfig()
     Σ = Dict("m" => 1e-1, "J" => 1e-2)
-    config = Dict("Δtsim" => 0.001, "Ndfs" => 100, "trainsamples" => 1000, "testsamples" => 1000, "simsteps" => 20, "Σ" => Σ)
+    config = Dict("Δtsim" => 0.001, "Ndfs" => 1, "trainsamples" => 100, "testsamples" => 1, "simsteps" => 20, "Σ" => Σ)
     return config
 end
 

@@ -9,10 +9,13 @@ include("generatedata.jl")
 struct MeanDynamics <: GaussianProcesses.Mean 
     mechanism::Mechanism
     getμ::Function
+    μID::Int
+    cache
     xtransform::Function
 
-    function MeanDynamics(mechanism::Mechanism, getμ; xtransform=(x, _) -> x)
-        new(mechanism, getμ, xtransform)
+    function MeanDynamics(mechanism::Mechanism, getμ, μID, cache; xtransform=(x, _) -> x)
+        vcache = @view cache[:]
+        new(mechanism, getμ, μID, vcache, xtransform)
     end 
 end
 
@@ -26,19 +29,19 @@ function GaussianProcesses.set_params!(::MeanDynamics, hyp::AbstractVector)
 end
 
 function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
-    mechanism = mDynamics.mechanism
-    oldstates = getStates(mechanism)
-    x = mDynamics.xtransform(x, mechanism)
-    cstate = CState(x)
-    setstates!(mechanism, cstate)
-    newton!(mechanism)
-    # setstates!(mechanism, cstate)  # Only way to make results consistent. TODO: Ask Jan about this
-    # newton!(mechanism)
-    μ = mDynamics.getμ(mechanism)
-    for (id, state) in enumerate(oldstates)
-        mechanism.bodies[id].state = state  # Reset mechanism to default values
+    if mDynamics.cache[1] != x  # Cache is invalid
+        mDynamics.cache[1] = x  # Set cache key
+        mechanism = mDynamics.mechanism
+        oldstates = getStates(mechanism)
+        x = mDynamics.xtransform(x, mechanism)
+        setstates!(mechanism, CState(x))
+        newton!(mechanism)
+        mDynamics.cache[2] = mDynamics.getμ(mechanism)  # Set cache data to result
+        for (id, state) in enumerate(oldstates)
+            mechanism.bodies[id].state = state  # Reset mechanism to default values
+        end
     end
-    return μ
+    return mDynamics.cache[2][mDynamics.μID]
 end
 
 function getμ(id::Integer)
@@ -51,3 +54,50 @@ function getμ(id::Integer)
     end
     throw(ArgumentError("Index $id does not point to v/ω!"))
 end
+
+#=
+using GaussianProcesses
+using StaticArrays
+using ConstrainedDynamics
+
+include("utils.jl")
+include("generatedata.jl")
+
+
+struct MeanDynamics <: GaussianProcesses.Mean 
+    mechanism::Mechanism
+    getμ::Function
+    μID::Int
+    cache::AbstractArray{AbstractArray}
+    xtransform::Function
+
+    function MeanDynamics(mechanism::Mechanism, getμ, μID; xtransform=(x, _) -> x)
+        new(mechanism, getμ, μID, [Vector{Float64}(), Vector{Float64}()], xtransform)
+    end 
+end
+
+GaussianProcesses.num_params(::MeanDynamics) = 0
+GaussianProcesses.grad_mean(::MeanDynamics, ::AbstractVector) = Float64[]
+GaussianProcesses.get_params(::MeanDynamics) = Float64[]
+GaussianProcesses.get_param_names(::MeanDynamics) = Symbol[]
+
+function GaussianProcesses.set_params!(::MeanDynamics, hyp::AbstractVector)
+    length(hyp) == 0 || throw(ArgumentError("Mean dynamics function has no parameters"))
+end
+
+function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
+    if mDynamics.cache[1] != x  # Cache is invalid
+        mDynamics.cache[1] = x  # Set cache key
+        mechanism = mDynamics.mechanism
+        oldstates = getStates(mechanism)
+        x = mDynamics.xtransform(x, mechanism)
+        setstates!(mechanism, CState(x))
+        newton!(mechanism)
+        mDynamics.cache[2] = mDynamics.getμ(mechanism)  # Set cache data to result
+        for (id, state) in enumerate(oldstates)
+            mechanism.bodies[id].state = state  # Reset mechanism to default values
+        end
+    end
+    return μ[mDynamics.μID]
+end
+=#
