@@ -57,9 +57,17 @@ function toState(cstate::CState{T,1}) where {T}
     return state
 end
 
-function CState(mechanism::Mechanism)
+function CState(mechanism::Mechanism; usesolution=false)
+    usesolution && return _CStateSolution(mechanism)
     N = length(mechanism.bodies)
     return CState([mechanism.bodies[id].state for id in 1:N])
+end
+
+function _CStateSolution(mechanism::Mechanism)
+    N = length(mechanism.bodies)
+    sv = [mechanism.bodies[i].state for i in 1:N]
+    x = reduce(vcat, [[s.xsol[2]..., q2vec(s.qsol[2])..., s.vsol[2]..., s.ωsol[2]...] for s in sv])
+    return CState(SVector{13*N, Float64}(x))
 end
 
 function CState(storage::Storage{T,N}, i::Int) where {T,N}

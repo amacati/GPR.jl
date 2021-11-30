@@ -95,7 +95,7 @@ end
 
 config = Dict("nruns" => 100,
               "Δtsim" => 0.001,
-              "testsamples" => 100,
+              "testsamples" => 1000,
               "simsteps" => 20)
 
 samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]

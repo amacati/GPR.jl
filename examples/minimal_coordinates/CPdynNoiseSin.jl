@@ -41,9 +41,10 @@ function experimentMeanDynamicsNoisyCPMinSin(config, id)
         return [0, x, 0, 1, 0, 0, 0, 0, v, 0, 0, 0, 0,
                 x2curr..., q.w, q.x, q.y, q.z, v2..., ω, 0, 0]
     end
+    cache = MDCache()
     for (id, yi) in enumerate(ytrain)
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        mean = MeanDynamics(mechanism, getμ(vωindices[id]), xtransform=xtransform)
+        mean = MeanDynamics(mechanism, getμ(vωindices), id, cache, xtransform=xtransform)
         gp = GP(xtrain_old, yi, mean, kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)

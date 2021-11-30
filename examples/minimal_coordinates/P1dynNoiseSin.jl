@@ -38,7 +38,8 @@ function experimentMeanDynamicsNoisyP1MinSin(config, id)
         v = (xnext - xcurr) / 0.01
         return [xcurr..., q.w, q.x, q.y, q.z, v..., ω, 0, 0]
     end
-    gp = GP(xtrain_old, ytrain, MeanDynamics(mechanism, getμ(11), xtransform=xtransform), kernel)
+    mean = MeanDynamics(mechanism, getμ([11]), 1, cache, xtransform=xtransform)
+    gp = GP(xtrain_old, ytrain, mean, kernel)
     GaussianProcesses.optimize!(gp, LBFGS(linesearch=BackTracking(order=2)), Optim.Options(time_limit=10.))
     gps = [gp]
     

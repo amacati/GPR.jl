@@ -42,12 +42,11 @@ function experimentMeanDynamicsNoisyP2Min(config, id)
         return [x1curr..., q1.w, q1.x, q1.y, q1.z, v1..., ω1, 0, 0,
                 x2curr..., q2.w, q2.x, q2.y, q2.z, v2..., ω1+ω2, 0, 0]
     end
-    getμ1(mech) = return mech.bodies[1].state.ωsol[2][1]
-    getμ2(mech) = return mech.bodies[2].state.ωsol[2][1] - mech.bodies[1].state.ωsol[2][1]
-    getμs = [getμ1, getμ2]
+    _getμ(mech) = return [mech.bodies[1].state.ωsol[2][1], mech.bodies[2].state.ωsol[2][1] - mech.bodies[1].state.ωsol[2][1]]
+    cache = MDCache()
     for (id, yi) in enumerate(ytrain)
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        mean = MeanDynamics(mechanism, getμs[id], xtransform=xtransform)
+        mean = MeanDynamics(mechanism, _getμ, id, cache, xtransform=xtransform)
         gp = GP(xtrain_old, yi, mean, kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
