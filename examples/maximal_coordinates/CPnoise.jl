@@ -7,13 +7,11 @@ using LineSearches
 using Statistics
 
 
-function experimentNoisyCPMax(config, id)
-    traindfs, testdfs = loaddatasets("CP")
-    ΔJ = traindfs.ΔJ[id]
-    m = traindfs.m[id]
+function _experiment_cp_max(config, id; meandynamics = false)
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
     traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]
     testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
-    mechanism = cartpole(1, Δt=0.01, m = m, ΔJ = ΔJ, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
+    mechanism = cartpole(1, Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
     
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
@@ -24,15 +22,17 @@ function experimentNoisyCPMax(config, id)
     xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
     xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 22, 23, 24]
-    ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
+    ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]    
     xtest_old = [CState(x) for x in testdf.sold]   
 
     predictedstates = Vector{CState{Float64, 2}}()
     params = config["params"]
     gps = Vector{GPE}()
-    for yi in ytrain
+    cache = MDCache()
+    for (id, yi) in enumerate(ytrain)
         kernel = SEArd(log.(params[2:end]), log(params[1]))
-        gp = GP(xtrain_old, yi, MeanZero(), kernel)
+        mean = meandynamics ? MeanDynamics(mechanism, getμ(vωindices), id, cache) : MeanZero()
+        gp = GP(xtrain_old, yi, mean, kernel)
         GaussianProcesses.optimize!(gp, LBFGS(linesearch = BackTracking(order=2)), Optim.Options(time_limit=10.))
         push!(gps, gp)
     end
@@ -44,6 +44,13 @@ function experimentNoisyCPMax(config, id)
         push!(predictedstates, predictedstate)
         projectionerror += perror
     end
-    
     return predictedstates, xtest_future_true, projectionerror/length(xtest_old)
+end
+
+function experiment_cp_mz_max(config, id)
+    return _experiment_cp_max(config, id, meandynamics=false)
+end
+
+function experiment_cp_md_max(config, id)
+    return _experiment_cp_max(config, id, meandynamics=true)
 end
