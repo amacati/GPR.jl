@@ -39,6 +39,8 @@ include("minimal_coordinates/FBnoiseSin.jl")
 include("minimal_coordinates/FBdynNoise.jl")
 include("minimal_coordinates/FBdynNoiseSin.jl")
 
+include("baseline.jl")
+
 include("parallel.jl")
 
 
@@ -94,14 +96,21 @@ end
 # "nruns" => 100, "Δtsim" => 0.001, "testsamples" => 1000, "simsteps" => 20
 
 config = Dict("nruns" => 100,
-              "Δtsim" => 0.001,
-              "testsamples" => 1000,
+              "Δtsim" => 0.0001,
+              "testsamples" => 100,
               "simsteps" => 20)
 
 samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
-dfkeys = ["P1friction", "P2friction", "CPfriction", "FBfriction"]  # "P1", "P2", "CP", "FB", "P1friction", "P2friction", "CPfriction", "FBfriction"
+dfkeys = ["P1", "P2", "CP", "FB"]  # "P1", "P2", "CP", "FB"
 datasets = loadalldatasets(dfkeys)
+
 #=
+@info "Processing pure variational integrator experiments"
+parallelsim(experimentVarIntP1, expand_config("P1_MIN", 2, config, datasets["P1"]), idmod = "VI")
+parallelsim(experimentVarIntP2, expand_config("P2_MIN", 2, config, datasets["P2"]), idmod = "VI")
+parallelsim(experimentVarIntCP, expand_config("CP_MIN", 2, config, datasets["CP"]), idmod = "VI")
+parallelsim(experimentVarIntFB, expand_config("FB_MIN", 2, config, datasets["FB"]), idmod = "VI")
+
 for nsamples in samplesizes
     @info "Processing maxc noise experiments"
     parallelsim(experimentNoisyP1Max, expand_config("P1_MAX", nsamples, config))
@@ -112,40 +121,41 @@ end
 
 for nsamples in samplesizes
     @info "Processing minc noise experiments"
-    parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config))
-    parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config))
-    parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config))
-    parallelsim(experimentNoisyFBMin, expand_config("FB_MIN", nsamples, config))
+    parallelsim(experimentNoisyP1Min, expand_config("P1_MIN", nsamples, config, datasets["P1"]))
+    parallelsim(experimentNoisyP2Min, expand_config("P2_MIN", nsamples, config, datasets["P2"]))
+    parallelsim(experimentNoisyCPMin, expand_config("CP_MIN", nsamples, config, datasets["CP"]))
+    parallelsim(experimentNoisyFBMin, expand_config("FB_MIN", nsamples, config, datasets["FB"]))
 end
 
 for nsamples in samplesizes
     @info "Processing minc sin noise experiments"
-    parallelsim(experimentNoisyP1MinSin, expand_config("P1_MIN", nsamples, config), idmod = "sin")
-    parallelsim(experimentNoisyP2MinSin, expand_config("P2_MIN", nsamples, config), idmod = "sin")
-    parallelsim(experimentNoisyCPMinSin, expand_config("CP_MIN", nsamples, config), idmod = "sin")
-    parallelsim(experimentNoisyFBMinSin, expand_config("FB_MIN", nsamples, config), idmod = "sin")
+    parallelsim(experimentNoisyP1MinSin, expand_config("P1_MIN", nsamples, config, datasets["P1"]), idmod = "sin")
+    parallelsim(experimentNoisyP2MinSin, expand_config("P2_MIN", nsamples, config, datasets["P2"]), idmod = "sin")
+    parallelsim(experimentNoisyCPMinSin, expand_config("CP_MIN", nsamples, config, datasets["CP"]), idmod = "sin")
+    parallelsim(experimentNoisyFBMinSin, expand_config("FB_MIN", nsamples, config, datasets["FB"]), idmod = "sin")
 end
-=#
+
 for nsamples in samplesizes
     @info "Processing maxc dynamics experiments"
-    parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config, datasets["P1friction"]), idmod = "MD")
-    parallelsim(experimentMeanDynamicsNoisyP2Max, expand_config("P2_MAX", nsamples, config, datasets["P2friction"]), idmod = "MD")
-    parallelsim(experimentMeanDynamicsNoisyCPMax, expand_config("CP_MAX", nsamples, config, datasets["CPfriction"]), idmod = "MD")
-    parallelsim(experimentMeanDynamicsNoisyFBMax, expand_config("FB_MAX", nsamples, config, datasets["FBfriction"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyP1Max, expand_config("P1_MAX", nsamples, config, datasets["P1"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyP2Max, expand_config("P2_MAX", nsamples, config, datasets["P2"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyCPMax, expand_config("CP_MAX", nsamples, config, datasets["CP"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyFBMax, expand_config("FB_MAX", nsamples, config, datasets["FB"]), idmod = "MD")
 end
 
 for nsamples in samplesizes
     @info "Processing minc dynamics experiments"
-    parallelsim(experimentMeanDynamicsNoisyP1Min, expand_config("P1_MIN", nsamples, config, datasets["P1friction"]), idmod = "MD")
-    parallelsim(experimentMeanDynamicsNoisyP2Min, expand_config("P2_MIN", nsamples, config, datasets["P2friction"]), idmod = "MD")
-    parallelsim(experimentMeanDynamicsNoisyCPMin, expand_config("CP_MIN", nsamples, config, datasets["CPfriction"]), idmod = "MD")
-    parallelsim(experimentMeanDynamicsNoisyFBMin, expand_config("FB_MIN", nsamples, config, datasets["FBfriction"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyP1Min, expand_config("P1_MIN", nsamples, config, datasets["P1"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyP2Min, expand_config("P2_MIN", nsamples, config, datasets["P2"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyCPMin, expand_config("CP_MIN", nsamples, config, datasets["CP"]), idmod = "MD")
+    parallelsim(experimentMeanDynamicsNoisyFBMin, expand_config("FB_MIN", nsamples, config, datasets["FB"]), idmod = "MD")
 end
 
 for nsamples in samplesizes
     @info "Processing minc sin dynamics experiments"
-    parallelsim(experimentMeanDynamicsNoisyP1MinSin, expand_config("P1_MIN", nsamples, config, datasets["P1friction"]), idmod = "MDsin")
-    parallelsim(experimentMeanDynamicsNoisyP2MinSin, expand_config("P2_MIN", nsamples, config, datasets["P2friction"]), idmod = "MDsin")
-    parallelsim(experimentMeanDynamicsNoisyCPMinSin, expand_config("CP_MIN", nsamples, config, datasets["CPfriction"]), idmod = "MDsin")
-    parallelsim(experimentMeanDynamicsNoisyFBMinSin, expand_config("FB_MIN", nsamples, config, datasets["FBfriction"]), idmod = "MDsin")
+    parallelsim(experimentMeanDynamicsNoisyP1MinSin, expand_config("P1_MIN", nsamples, config, datasets["P1"]), idmod = "MDsin")
+    parallelsim(experimentMeanDynamicsNoisyP2MinSin, expand_config("P2_MIN", nsamples, config, datasets["P2"]), idmod = "MDsin")
+    parallelsim(experimentMeanDynamicsNoisyCPMinSin, expand_config("CP_MIN", nsamples, config, datasets["CP"]), idmod = "MDsin")
+    parallelsim(experimentMeanDynamicsNoisyFBMinSin, expand_config("FB_MIN", nsamples, config, datasets["FB"]), idmod = "MDsin")
 end
+=#

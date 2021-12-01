@@ -64,7 +64,7 @@ function _simplependulum2Dmech(r, l, m, ΔJ, joint_axis, p2, g, Δt)
 end
 
 function doublependulum2D(steps::Int; Δt::Real = 0.01, θstart::Vector{<:Real} = [0., 0.], ωstart::Vector{<:Real} = [0., 0.], Δm::Vector{<:Real} = ones(2),
-                          ΔJ::Vector{<:Real} = zeros(2), friction::Vector{<:Real} = zeros(2), threadlock = nothing)
+                          ΔJ::Vector{<:Real} = ones(2), friction::Vector{<:Real} = zeros(2), threadlock = nothing)
     # Parameters
     l1 = 1.0
     l2 = 1.0
@@ -120,7 +120,7 @@ function _doublependulum2Dmech(x, y, l1, l2, m, ΔJ, joint_axis, vert11, vert12,
 end
 
 function cartpole(steps::Int; Δt::Real = 0.01, xstart::Real = 0., θstart::Real = 0., vstart::Real = 0., ωstart::Real = 0., 
-                  Δm::Vector{<:Real} = ones(2), ΔJ::Real = 0., friction::Vector{<:Real} = zeros(2), threadlock = nothing)
+                  Δm::Vector{<:Real} = ones(2), ΔJ::Real = 1., friction::Vector{<:Real} = zeros(2), threadlock = nothing)
     xaxis = [1.0; 0.0; 0.0]
     yaxis = [0.0; 1.0; 0.0]
     g = -9.81
@@ -173,7 +173,7 @@ function _cartpolemech(x, y, z, r, l, m, ΔJ, xaxis, yaxis, p01, p12, p21, Δt)
     return mech, origin, link1, link2
 end
 
-function fourbar(steps::Int; Δt::Real = 0.01, θstart::Vector{<:Real} = [0., 0.], Δm::Vector{<:Real} = ones(4), ΔJ::Vector{<:Real} = zeros(4), 
+function fourbar(steps::Int; Δt::Real = 0.01, θstart::Vector{<:Real} = [0., 0.], Δm::Vector{<:Real} = ones(4), ΔJ::Vector{<:Real} = ones(4), 
                  friction::Vector{<:Real} = zeros(4), threadlock = nothing)
     # Parameters
     ex = [1.;0.;0.]

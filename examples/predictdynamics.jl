@@ -15,6 +15,12 @@ function predictdynamics(mechanism::Mechanism, gps::Vector{<:GPE}, startobservat
     return CState(mechanism), projectionerror/steps
 end
 
+function predictdynamics(mechanism::Mechanism, startobservation::CState, steps::Int)
+    setstates!(mechanism, startobservation)
+    ConstrainedDynamics.simulate!(mechanism, 1:steps+1, Storage{Float64}())
+    return CState(mechanism)
+end
+
 function predictdynamicsmin(mechanism::Mechanism, etype::String, gps::Vector{<:GPE}, startobservation::Vector{Float64}, steps::Integer; usesin::Bool = false)
     etype == "P1" && return _predictdynamicsp1min(mechanism, gps, startobservation, steps, usesin)
     etype == "P2" && return _predictdynamicsp2min(mechanism, gps, startobservation, steps, usesin)
