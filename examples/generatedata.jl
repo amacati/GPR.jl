@@ -20,8 +20,9 @@ function max2mincoordinates(cstate::CState, mechanism::Mechanism)
     return cstate_min
 end
 
-function simplependulum2D(steps; Δt = 0.01, θstart = 0., ωstart = 0., m = 1.0, ΔJ = SMatrix{3,3,Float64}(zeros(9)...), friction = 0, threadlock = nothing)
+function simplependulum2D(steps::Int; Δt::Real = 0.01, θstart::Real = 0., ωstart::Real = 0., Δm::Real = 1.0, ΔJ::Real = 1.0, friction::Real = 0, threadlock = nothing)
     joint_axis = [1.0; 0.0; 0.0]
+    m = 1.0Δm
     g = -9.81
     l = 1.0
     r = 0.01
@@ -55,18 +56,19 @@ end
 function _simplependulum2Dmech(r, l, m, ΔJ, joint_axis, p2, g, Δt)
     origin = Origin{Float64}()
     link1 = Cylinder(r, l, m)
-    link1.J = abs.(link1.J + ΔJ)
+    link1.J = I*1/12*m*l^2*ΔJ + zeros(3,3)  # Zeros to set broadcast shape
     joint_between_origin_and_link1 = EqualityConstraint(Revolute(origin, link1, joint_axis; p2=p2))
     links = [link1]
     constraints = [joint_between_origin_and_link1]
     return Mechanism(origin, links, constraints, g=g, Δt=Δt), origin, link1
 end
 
-function doublependulum2D(steps; Δt = 0.01, θstart = [0., 0.], ωstart = [0., 0.], m = [1., sqrt(2)/2],
-                           ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], friction = [0,0], threadlock = nothing)
+function doublependulum2D(steps::Int; Δt::Real = 0.01, θstart::Vector{<:Real} = [0., 0.], ωstart::Vector{<:Real} = [0., 0.], Δm::Vector{<:Real} = ones(2),
+                          ΔJ::Vector{<:Real} = zeros(2), friction::Vector{<:Real} = zeros(2), threadlock = nothing)
     # Parameters
     l1 = 1.0
-    l2 = sqrt(2) / 2
+    l2 = 1.0
+    m = ones(2) .* Δm
     x, y = .1, .1
     vert11 = [0.;0.;l1 / 2]
     vert12 = -vert11
@@ -107,8 +109,8 @@ function _doublependulum2Dmech(x, y, l1, l2, m, ΔJ, joint_axis, vert11, vert12,
     origin = Origin{Float64}()
     link1 = Box(x, y, l1, m[1], color = RGBA(1., 1., 0.))
     link2 = Box(x, y, l2, m[2], color = RGBA(1., 1., 0.))
-    link1.J = abs.(link1.J + ΔJ[1])
-    link2.J = abs.(link2.J + ΔJ[2])
+    link1.J = I*1/12*m[1]*l1^2*ΔJ[1] + zeros(3,3)  # Zeros to set broadcast shape
+    link2.J = I*1/12*m[2]*l2^2*ΔJ[2] + zeros(3,3)
     socket0to1 = EqualityConstraint(Revolute(origin, link1, joint_axis; p2=vert11))
     socket1to2 = EqualityConstraint(Revolute(link1, link2, joint_axis; p1=vert12, p2=vert21))
     links = [link1;link2]
@@ -117,13 +119,14 @@ function _doublependulum2Dmech(x, y, l1, l2, m, ΔJ, joint_axis, vert11, vert12,
     return mech, origin, link1, link2
 end
 
-function cartpole(steps; Δt = 0.01, xstart=0., θstart=0., vstart = 0., ωstart = 0., m = [1., 1.],
-                   ΔJ = [SMatrix{3,3,Float64}(zeros(9)...), SMatrix{3,3,Float64}(zeros(9)...)], friction = [0, 0], threadlock = nothing)
+function cartpole(steps::Int; Δt::Real = 0.01, xstart::Real = 0., θstart::Real = 0., vstart::Real = 0., ωstart::Real = 0., 
+                  Δm::Vector{<:Real} = ones(2), ΔJ::Real = 0., friction::Vector{<:Real} = zeros(2), threadlock = nothing)
     xaxis = [1.0; 0.0; 0.0]
     yaxis = [0.0; 1.0; 0.0]
     g = -9.81
     l = 0.5
     r = 0.01
+    m = ones(2) .* Δm
     p01 = [0.0; 0.0; 0.0] # joint connection point
     p12 = [0.0; 0.0; 0.0]
     p21 = [0.0; 0.0; l/2]
@@ -160,8 +163,8 @@ function _cartpolemech(x, y, z, r, l, m, ΔJ, xaxis, yaxis, p01, p12, p21, Δt)
     origin = Origin{Float64}()
     link1 = Box(x, y, z, m[1])
     link2 = Cylinder(r, l, m[2])
-    link1.J = abs.(link1.J + ΔJ[1])
-    link2.J = abs.(link2.J + ΔJ[2])
+    # link1 inertia doesn't matter, no rotation
+    link2.J = I*1/12*m[2]*l^2*ΔJ + zeros(3,3)  # Only xx matters
     joint_origin_link1 = EqualityConstraint(Prismatic(origin, link1, yaxis; p2=p01))
     joint_link1_link2 = EqualityConstraint(Revolute(link1, link2, xaxis; p1=p12, p2=p21))
     links = [link1, link2]
@@ -170,10 +173,12 @@ function _cartpolemech(x, y, z, r, l, m, ΔJ, xaxis, yaxis, p01, p12, p21, Δt)
     return mech, origin, link1, link2
 end
 
-function fourbar(steps; Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,3,Float64}(zeros(9)...), friction = [0,0], threadlock = nothing)
+function fourbar(steps::Int; Δt::Real = 0.01, θstart::Vector{<:Real} = [0., 0.], Δm::Vector{<:Real} = ones(4), ΔJ::Vector{<:Real} = zeros(4), 
+                 friction::Vector{<:Real} = zeros(4), threadlock = nothing)
     # Parameters
     ex = [1.;0.;0.]
     l = 1.0
+    m = ones(4) .* Δm
     x, y = .1, .1
     vert11 = [0.;0.;l / 2]
     vert12 = -vert11
@@ -200,10 +205,7 @@ function fourbar(steps; Δt = 0.01, θstart = [0., 0.], m = 1., ΔJ = SMatrix{3,
     setPosition!(links[3], links[4], p1 = vert12, p2 = vert11, Δq = Δq2 * Δq2)
     initialstates = [deepcopy(body.state) for body in mech.bodies]
     if (any(friction .!= 0))
-        function control!(mech, _)
-            setForce!(mech.bodies[1], F=-SA[1.,0,0]friction[1]*mech.bodies[1].state.ωc[1])
-            setForce!(mech.bodies[3], τ=-SA[1.,0,0]friction[2]*mech.bodies[3].state.ωc[1])
-        end
+        control!(mech, _) = for i in 1:4 setForce!(mech.bodies[i], τ=-SA[1.,0,0]friction[i]*mech.bodies[i].state.ωc[1]) end
         storage = simulate!(mech, ΔT, control!, record = true)
     else
         storage = simulate!(mech, ΔT, record = true)
@@ -213,9 +215,9 @@ end
 
 function _fourbarmech(x, y, l, m, ΔJ, ex, vert11, vert12, Δt)
     origin = Origin{Float64}()
-    links = [Box(x, y, l, m, color = RGBA(1., 1., 0.)) for _ in 1:4]
-    for link in links
-        link.J = abs.(link.J + ΔJ)  # Inertia modification
+    links = [Box(x, y, l, m[i], color = RGBA(1., 1., 0.)) for i in 1:4]
+    for (i, link) in enumerate(links)
+        link.J = I*1/12*m[i]*l^2*ΔJ[i] + zeros(3,3)  # Zeros to set broadcast shape
     end
     j1 = EqualityConstraint(Revolute(origin, links[1], ex; p2=vert11))
     j2 = EqualityConstraint(Revolute(links[1], links[2], ex; p1=vert12, p2=vert11), Cylindrical(links[1], links[3], ex; p1=vert11, p2=vert11))
@@ -226,20 +228,21 @@ function _fourbarmech(x, y, l, m, ΔJ, ex, vert11, vert12, Δt)
     return mech, origin, links
 end
 
-function generate_dataframes(config, nsamples, exp1, exp2, exptest; parallel = false)
-    parallel && return _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
-    return _generate_dataframes(config, nsamples, exp1, exp2, exptest)
+function generate_dataframes(config, exp1, exp2, exptest; parallel = false)
+    parallel && return _generate_dataframes_p(config, exp1, exp2, exptest)
+    return _generate_dataframes(config, exp1, exp2, exptest)
 end
 
-function _generate_dataframes(config, nsamples, exp1, exp2, exptest)
+function _generate_dataframes(config, exp1, exp2, exptest)
+    @warn "Currently sampling one data point per trajectory only!"
     scaling = Int(0.01/config["Δtsim"])
     traindf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}())
-    for _ in 1:div(nsamples, 2)
+    for _ in 1:div(config["trainsamples"], 2)
         storage = exp1()  # Simulate 2 secs from random position, choose one sample
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
         push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
     end
-    for _ in 1:div(nsamples, 2)
+    for _ in 1:div(config["trainsamples"], 2)
         storage = exp2()
         j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
         push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
@@ -253,69 +256,61 @@ function _generate_dataframes(config, nsamples, exp1, exp2, exptest)
     return traindf, testdf
 end
 
-function _generate_dataframes_p(config, nsamples, exp1, exp2, exptest)
+function _generate_dataframes_p(config, exp1, exp2, exptest)
+    max_trajectories = 100
+    Ntrajectories = min(config["trainsamples"], max_trajectories)
+    Ntrajectories_test = min(config["testsamples"], max_trajectories)
+    Ntrajectorysamples = Int(ceil(config["trainsamples"]/max_trajectories))
     scaling = Int(0.01/config["Δtsim"])
+    samplerange = 1:(2*Int(1/config["Δtsim"]) - scaling)
     traindf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}())
     threadlock = ReentrantLock()  # Push to df not atomic
-    Threads.@threads for _ in 1:div(nsamples, 2)
-        storage = nothing
-        while true  # Retry experiment if simulation fails
-            try
-                storage = exp1()  # Simulate 2 secs from random position, choose one sample
-            catch
-                @warn "Experiment failed, retrying..."
-                continue
-            end
-            break
-        end
-        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
-        lock(threadlock)
-        try
-            push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
-        finally
-            unlock(threadlock)
-        end
+    Threads.@threads for _ in 1:div(Ntrajectories, 2)
+        storage = _run_experiment_p!(exp1)
+        _pushsamples_p!(storage, traindf, Ntrajectorysamples, samplerange, [0, scaling], scaling, threadlock)
     end
-    Threads.@threads for _ in 1:div(nsamples, 2)
-        storage = nothing
-        while true  # Retry experiment if simulation fails
-            try
-                storage = exp2()  # Simulate 2 secs from random position, choose one sample
-            catch
-                @warn "Experiment failed, retrying..."
-                continue
-            end
-            break
-        end
-        j = rand(1:2*Int(1/config["Δtsim"]) - scaling)  # End of storage - required steps
-        lock(threadlock)
-        try
-            push!(traindf, (getStates(storage, j), getStates(storage, j+scaling)))
-        finally
-            unlock(threadlock)
-        end
+    Threads.@threads for _ in 1:div(Ntrajectories, 2)
+        storage = _run_experiment_p!(exp2)
+        _pushsamples_p!(storage, traindf, Ntrajectorysamples, samplerange, [0, scaling], scaling, threadlock)
     end
-    testdf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}(), sfuture = Vector{Vector{State}}())
-    Threads.@threads for _ in 1:config["testsamples"]
-        storage = nothing
-        while true  # Retry experiment if simulation fails
-            try
-                storage = exptest()  # Simulate 2 secs from random position, choose one sample
-            catch
-                @warn "Experiment failed, retrying..."
-                continue
-            end
-            break
-        end
-        j = rand(1:2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))  # End of storage - required steps
-        lock(threadlock)
-        try
-            push!(testdf, (getStates(storage, j), getStates(storage, j+scaling), getStates(storage, j+scaling*(config["simsteps"]+1))))
-        finally
-            unlock(threadlock)
-        end
+    testdf = DataFrame(sold = Vector{Vector{State}}(), sfuture = Vector{Vector{State}}())
+    samplerange = 1:(2*Int(1/config["Δtsim"]) - scaling*(config["simsteps"]+1))
+    Threads.@threads for _ in 1:Ntrajectories_test
+        storage = _run_experiment_p!(exptest)
+        _pushsamples_p!(storage, testdf, Int(ceil(config["testsamples"]/Ntrajectories_test)), samplerange, [0, scaling*(config["simsteps"]+1)], scaling, threadlock)
     end
     return traindf, testdf
+end
+
+function _run_experiment_p!(experiment; maxruns = 10)
+    for _ in 1:maxruns  # Retry experiment if simulation fails
+        try
+            return experiment()
+        catch e
+            @warn "Experiment failed, retrying..."
+            display(e)
+            continue
+        end
+    end
+    throw(ErrorException("Experiment failed to execute $maxruns times"))
+end
+
+function _pushsamples_p!(storage, df, nsamples, samplerange, indexoffset, scaling, threadlock)
+    indiceset = Set()
+    for _ in 1:nsamples
+        j = 0
+        while true
+            j = rand(samplerange)  # End of storage - required steps
+            !any([j in ind-2scaling:ind+2scaling for ind in indiceset]) && break  # Sample j outside of existing indices
+        end
+        lock(threadlock)
+        try
+            push!(df, [getStates(storage, j+offset) for offset in indexoffset])
+            push!(indiceset, j)
+        finally
+            unlock(threadlock)
+        end
+    end
 end
 
 """
