@@ -7,15 +7,17 @@ using LineSearches
 using Statistics
 
 
-function experimentFBMin(config, _)
-    mechanism = deepcopy(config["mechanism"])
-    l = mechanism.bodies[1].shape.xyz[3]
-    # Sample from dataset
-    xtrain_old = reduce(hcat, [max2mincoordinates_fb(CState(x)) for x in config["traindf"].sold])
-    xtrain_curr = [max2mincoordinates_fb(CState(x)) for x in config["traindf"].scurr]
+function experimentFBMin(config, id)
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
+    traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["trainsamples"]], :]
+    testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
+    mechanism = fourbar(1, Δt=0.01, threadlock=config["mechanismlock"])[2]
+
+    xtrain_old = reduce(hcat, [max2mincoordinates_fb(CState(x)) for x in traindf.sold])
+    xtrain_curr = [max2mincoordinates_fb(CState(x)) for x in traindf.scurr]
     ytrain = [[s[id] for s in xtrain_curr] for id in [2,4]]  # ω11, ω31
-    xtest_old = [max2mincoordinates_fb(CState(x)) for x in config["testdf"].sold]
-    xtest_future = [CState(x) for x in config["testdf"].sfuture]
+    xtest_old = [max2mincoordinates_fb(CState(x)) for x in testdf.sold]
+    xtest_future = [CState(x) for x in testdf.sfuture]
     # intentionally not converting xtest_future since final comparison is done in maximal coordinates
 
     stdx = std(xtrain_old, dims=2)

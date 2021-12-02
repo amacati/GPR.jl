@@ -7,15 +7,18 @@ using LineSearches
 using Statistics
 
 
-function experimentFBMax(config, _)
-    mechanism = deepcopy(config["mechanism"])
-    # Sample from dataset
-    xtrain_old = reduce(hcat, [CState(x) for x in config["traindf"].sold])
-    xtrain_curr = [CState(x) for x in config["traindf"].scurr]
+function experimentFBMax(config, id)
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
+    traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["trainsamples"]], :]
+    testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
+    mechanism = fourbar(1, Δt=0.01, threadlock=config["mechanismlock"])[2]
+
+    xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
+    xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 10, 22, 23, 35, 36, 48, 49, 11, 24, 37, 50]  # v12, v13, v22, v23, v32, v33, v42, v43, ω11, ω21, ω31, ω41
     ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
-    xtest_old = [CState(x) for x in config["testdf"].sold]
-    xtest_future = [CState(x) for x in config["testdf"].sfuture]
+    xtest_old = [CState(x) for x in testdf.sold]
+    xtest_future = [CState(x) for x in testdf.sfuture]
 
     stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000

@@ -8,15 +8,18 @@ using Statistics
 using DataFrames
 
 
-function experimentP2Max(config, _)
-    mechanism = deepcopy(config["mechanism"])
-    # Sample from dataset
-    xtrain_old = reduce(hcat, [tocstate(x) for x in config["traindf"].sold])
-    xtrain_curr = [tocstate(x) for x in config["traindf"].scurr]
+function experimentP2Max(config, id)
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
+    traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["trainsamples"]], :]
+    testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
+    mechanism = doublependulum2D(1, Δt=0.01, threadlock=config["mechanismlock"])[2]
+
+    xtrain_old = reduce(hcat, [tocstate(x) for x in traindf.sold])
+    xtrain_curr = [tocstate(x) for x in traindf.scurr]
     vωindices = [9, 10, 22, 23, 11, 24]
     ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
-    xtest_old = [tocstate(x) for x in config["testdf"].sold]
-    xtest_future = [tocstate(x) for x in config["testdf"].sfuture]
+    xtest_old = [tocstate(x) for x in testdf.sold]
+    xtest_future = [tocstate(x) for x in testdf.sfuture]
 
     # Sample random parameters
     stdx = std(xtrain_old, dims=2)
