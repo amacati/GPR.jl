@@ -1,14 +1,10 @@
-using LinearAlgebra
-using StaticArrays
 using DataFrames
 using Serialization
-using ConstrainedDynamics
-using ConstrainedDynamics: State
-using GPR
 
 include("../utils.jl")
 include("simulations.jl")
 include("../../parallel/dataframes.jl")
+
 
 function generateP1dataset(config::Dict)
     traindf = DataFrame(df = Vector{DataFrame}(), Δm = Vector{Float64}(), ΔJ = Vector{Float64}(), friction = Vector{Float64}())

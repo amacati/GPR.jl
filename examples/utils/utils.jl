@@ -1,5 +1,6 @@
 using Rotations
 using JSON
+using GPR
 using ConstrainedDynamics: Mechanism, Storage, State, updatestate!, newton!, foreachactive, setsolution!, discretizestate!
 
 

@@ -1,3 +1,9 @@
+using LinearAlgebra
+using StaticArrays
+using ConstrainedDynamics
+using ConstrainedDynamics: State
+
+
 function simplependulum2D(steps::Int; Δt::Real = 0.01, θstart::Real = 0., ωstart::Real = 0., Δm::Real = 1.0, ΔJ::Real = 1.0, friction::Real = 0, threadlock = nothing)
     joint_axis = [1.0; 0.0; 0.0]
     m = 1.0Δm

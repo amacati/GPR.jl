@@ -1,5 +1,3 @@
-include("utils/utils.jl")
-
 function checkpointgeneric(etype::String, config::Dict, jobid::Integer, checkpointcallback!::Function)
     if jobid % 50 == 0
         @info ("Main Thread: Processing job $(jobid)/$(config["nruns"]), jobID $(config["EXPERIMENT_ID"])")
