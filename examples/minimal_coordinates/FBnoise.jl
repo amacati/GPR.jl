@@ -17,7 +17,7 @@ function _experiment_fb_min(config, id; usesin = false, meandynamics = false)
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, config["Σ"], "FB", config["Δtsim"], l)
+        # applynoise!(df, config["Σ"], "FB", config["Δtsim"], l)
     end
     # Create train and testsets
     xtrain_old = [max2mincoordinates_fb(CState(x)) for x in traindf.sold]

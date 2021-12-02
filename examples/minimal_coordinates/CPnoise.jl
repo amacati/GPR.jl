@@ -17,7 +17,7 @@ function _experiment_cp_min(config, id; usesin = false, meandynamics = false)
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, config["Σ"], "CP", config["Δtsim"], l)
+        # applynoise!(df, config["Σ"], "CP", config["Δtsim"], l)
     end
     # Create train and testsets
     xtrain_old = [max2mincoordinates(CState(x), mechanism) for x in traindf.sold]
