@@ -26,7 +26,7 @@ function experimentP2Max(config, id)
     params = [1.1, (50 ./stdx)...]
     params = params .+ (5rand(length(params)) .- 0.999) .* params
 
-    predictedstates = Vector{Vector{Float64}}()
+    predictedstates = Vector{CState{Float64, 2}}()
     gps = Vector{GPE}()
     for yi in ytrain
         kernel = SEArd(log.(params[2:end]), log(params[1]))

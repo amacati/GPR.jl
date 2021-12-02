@@ -18,7 +18,6 @@ function experimentP2Min(config, id)
     ytrain = [[s[id] for s in xtrain_curr] for id in [2,4]]  # ω11, ω21
     xtest_old = [max2mincoordinates(CState(x),mechanism) for x in testdf.sold]
     xtest_future = [CState(x) for x in testdf.sfuture]
-    # intentionally not converting xtest_future since final comparison is done in maximal coordinates
 
     stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000
