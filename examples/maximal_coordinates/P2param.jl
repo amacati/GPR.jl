@@ -5,7 +5,6 @@ using ConstrainedDynamicsVis
 using ConstrainedDynamics
 using LineSearches
 using Statistics
-using DataFrames
 
 
 function experimentP2Max(config, id)
@@ -14,12 +13,12 @@ function experimentP2Max(config, id)
     testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
     mechanism = doublependulum2D(1, Δt=0.01, threadlock=config["mechanismlock"])[2]
 
-    xtrain_old = reduce(hcat, [tocstate(x) for x in traindf.sold])
-    xtrain_curr = [tocstate(x) for x in traindf.scurr]
+    xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
+    xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 10, 22, 23, 11, 24]
-    ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
-    xtest_old = [tocstate(x) for x in testdf.sold]
-    xtest_future = [tocstate(x) for x in testdf.sfuture]
+    ytrain = [[cs[i] for cs in xtrain_curr] for i in vωindices]
+    xtest_old = [CState(x) for x in testdf.sold]
+    xtest_future = [CState(x) for x in testdf.sfuture]
 
     # Sample random parameters
     stdx = std(xtrain_old, dims=2)

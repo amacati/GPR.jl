@@ -16,7 +16,7 @@ function experimentFBMax(config, id)
     xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
     xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 10, 22, 23, 35, 36, 48, 49, 11, 24, 37, 50]  # v12, v13, v22, v23, v32, v33, v42, v43, ω11, ω21, ω31, ω41
-    ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
+    ytrain = [[cs[i] for cs in xtrain_curr] for i in vωindices]
     xtest_old = [CState(x) for x in testdf.sold]
     xtest_future = [CState(x) for x in testdf.sfuture]
 

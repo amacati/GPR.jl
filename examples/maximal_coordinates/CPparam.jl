@@ -16,7 +16,7 @@ function experimentCPMax(config, id)
     xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
     xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 22, 23, 24]
-    ytrain = [[s[i] for s in xtrain_curr] for i in vωindices]
+    ytrain = [[cs[i] for cs in xtrain_curr] for i in vωindices]
     xtest_old = [CState(x) for x in testdf.sold]
     xtest_future = [CState(x) for x in testdf.sfuture]
 
