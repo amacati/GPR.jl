@@ -82,3 +82,13 @@ function CState(storage::Storage{T,N}, i::Int) where {T,N}
     end
     return CState(x)
 end
+
+function setstates!(mechanism::Mechanism, cstate::CState{T,N}) where {T,N}
+    @assert N == length(mechanism.bodies) ("CState bodies don't match mechanism!") 
+    states = toStates(cstate)
+    for id in 1:N
+        mechanism.bodies[id].state = states[id]
+    end
+    ConstrainedDynamics.discretizestate!(mechanism)
+    foreach(ConstrainedDynamics.setsolution!, mechanism.bodies)
+end

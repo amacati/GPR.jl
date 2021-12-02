@@ -38,7 +38,7 @@ function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
         oldstates = getStates(mechanism)
         x = mDynamics.xtransform(x, mechanism)
         setstates!(mechanism, CState(x))
-        newton!(mechanism)
+        ConstrainedDynamics.newton!(mechanism)
         mDynamics.cache.data = mDynamics.getμ(mechanism)  # Set cache data to result
         for (id, state) in enumerate(oldstates)
              mechanism.bodies[id].state = state  # Reset mechanism to default values

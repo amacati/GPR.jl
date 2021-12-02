@@ -1,3 +1,5 @@
+using GPR
+
 function experimentVarInt(config, id, eid, mechanism, varargs...)
     testdfs = config["datasets"][2]  # Each thread operates on its own dataset -> no races
     testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]

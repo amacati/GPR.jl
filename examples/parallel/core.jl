@@ -36,7 +36,7 @@ function parallelrun(etype::String, experiment::Function, config::Dict, checkpoi
             result = experiment(config, jobid)  # GaussianProcesses.optimize! spams exceptions
         catch e
             display(e)
-            # throw(e)
+            throw(e)
         end
         lock(config["resultlock"])
         # Writing the results

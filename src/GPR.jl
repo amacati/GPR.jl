@@ -16,6 +16,7 @@ export projectv!
 export CState
 export toState
 export toStates
+export setstates!
 
 export MDCache
 export MeanDynamics

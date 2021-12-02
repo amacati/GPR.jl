@@ -1,3 +1,9 @@
+using Rotations
+using GaussianProcesses
+using ConstrainedDynamics
+using GPR
+
+
 function predictdynamics(mechanism::Mechanism, gps::Vector{<:GPE}, startobservation::CState, steps::Integer, getvω::Function; regularizer::Real = 0.)
     projectionerror = 0
     oldstates = startobservation

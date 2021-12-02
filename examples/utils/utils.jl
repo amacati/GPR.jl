@@ -22,16 +22,6 @@ function getStates(storage::Storage, i::Int)
     return states
 end
 
-function setstates!(mechanism::Mechanism, cstate::CState{T,N}) where {T,N}
-    @assert N == length(mechanism.bodies) ("CState bodies don't match mechanism!") 
-    states = toStates(cstate)
-    for id in 1:N
-        mechanism.bodies[id].state = states[id]
-    end
-    discretizestate!(mechanism)
-    foreach(setsolution!, mechanism.bodies)
-end
-
 function overwritestorage(storage::Storage, cstate::CState{T,N}, i::Int) where {T,N}
     @assert N == length(storage.x) ("CState bodies don't match the storage!") 
     for id in 1:N

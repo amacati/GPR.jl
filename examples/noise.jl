@@ -2,10 +2,10 @@ using LinearAlgebra
 using GPR
 
 include("utils/utils.jl")
-include("generatedata.jl")
-include("generate_datasets.jl")
-include("mDynamics.jl")
-include("predictdynamics.jl")
+include("utils/data/datasets.jl")
+include("utils/data/transformations.jl")
+include("utils/predictdynamics.jl")
+include("parallel/core.jl")
 
 include("maximal_coordinates/P1noise.jl")
 include("maximal_coordinates/P2noise.jl")
@@ -19,7 +19,6 @@ include("minimal_coordinates/FBnoise.jl")
 
 include("baseline.jl")
 
-include("parallel.jl")
 
 
 function loadcheckpoint_or_defaults(_loadcheckpoint::Bool)
@@ -61,11 +60,11 @@ function expand_config(EXPERIMENT_ID::String, nsamples::Integer, config::Dict, d
     return config
 end
 
-config = Dict("nruns" => 1, "Δtsim" => 0.0001, "testsamples" => 1, "simsteps" => 20)
+config = Dict("nruns" => 100, "Δtsim" => 0.0001, "testsamples" => 100, "simsteps" => 20)
 
-samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+samplesizes = [2]  # , 4, 8, 16, 32, 64, 128, 256, 512]
 dfkeys = ["P1", "P2", "CP", "FB"]
-@info "Main Thread: loading datasets $keys"
+@info "Main Thread: loading datasets $dfkeys"
 datasets = Dict(key => loaddatasets(key) for key in dfkeys)
 @info "Main Thead: finished loading datasets"
 
@@ -74,7 +73,7 @@ parallelsim(experimentVarIntP1, expand_config("P1_MIN", 2, config, datasets["P1"
 parallelsim(experimentVarIntP2, expand_config("P2_MIN", 2, config, datasets["P2"]), idmod = "VI")
 parallelsim(experimentVarIntCP, expand_config("CP_MIN", 2, config, datasets["CP"]), idmod = "VI")
 parallelsim(experimentVarIntFB, expand_config("FB_MIN", 2, config, datasets["FB"]), idmod = "VI")
-#=
+
 for nsamples in samplesizes
     @info "Processing maxc noise experiments"
     parallelsim(experiment_p1_mz_max, expand_config("P1_MAX", nsamples, config, datasets["P1"]))
@@ -122,4 +121,3 @@ for nsamples in samplesizes
     parallelsim(experiment_cp_md_min_sin, expand_config("CP_MIN", nsamples, config, datasets["CP"]), idmod = "MDsin")
     parallelsim(experiment_fb_md_min_sin, expand_config("FB_MIN", nsamples, config, datasets["FB"]), idmod = "MDsin")
 end
-=#
