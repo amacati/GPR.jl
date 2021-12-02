@@ -7,15 +7,18 @@ using LineSearches
 using Statistics
 
 
-function experimentP1Max(config, _)
-    mechanism = deepcopy(config["mechanism"])
-    # Sample from dataset    
-    xtrain_old = reduce(hcat, [CState(x) for x in config["traindf"].sold])
-    xtrain_curr = [CState(x) for x in config["traindf"].scurr]
+function experimentP1Max(config, id)
+    traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
+    traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["trainsamples"]], :]
+    testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]
+    mechanism = simplependulum2D(1, Δt=0.01, threadlock=config["mechanismlock"])[2]
+    
+    xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
+    xtrain_curr = [CState(x) for x in traindf.scurr]
     vωindices = [9, 10, 11]
     ytrain = [[cs[i] for cs in xtrain_curr] for i in vωindices]
-    xtest_old = [CState(x) for x in config["testdf"].sold]
-    xtest_future = [CState(x) for x in config["testdf"].sfuture]
+    xtest_old = [CState(x) for x in testdf.sold]
+    xtest_future = [CState(x) for x in testdf.sfuture]
 
     stdx = std(xtrain_old, dims=2)
     stdx[stdx .== 0] .= 1000
