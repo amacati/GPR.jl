@@ -42,20 +42,19 @@ end
 
 config = Dict("nruns" => 100, "Δtsim" => 0.0001, "testsamples" => 100, "simsteps" => 20)
 
-dfkeys = ["P1", "P2", "CP", "FB"]  # "P1", "P2", "CP", "FB"
+dfkeys = ["P2", "CP"]  # "P1", "P2", "CP", "FB"
 @info "Main Thread: loading datasets $dfkeys"
-# datasets = Dict(key => loaddatasets(key) for key in dfkeys)
-dfs = loaddatasets("P1_2048")
+datasets = Dict(key => loaddatasets(key) for key in dfkeys)
 @info "Main Thead: finished loading datasets"
 
-for nsamples in [2048]  # [2, 4, 8, 16, 32, 64, 128, 256, 512]
-    parallelsearch(experimentP1Max, expand_config(config, "P1_MAX", nsamples, dfs))
-    #parallelsearch(experimentP2Max, expand_config(config, "P2_MAX", nsamples, dfs))
-    #parallelsearch(experimentCPMax, expand_config(config, "CP_MAX", nsamples, dfs))
-    #parallelsearch(experimentFBMax, expand_config(config, "FB_MAX", nsamples, dfs))
+for nsamples in [1024, 2048]  # [2, 4, 8, 16, 32, 64, 128, 256, 512]
+    #parallelsearch(experimentP1Max, expand_config(config, "P1_MAX", nsamples, datasets["P1"]))
+    parallelsearch(experimentP2Max, expand_config(config, "P2_MAX", nsamples, datasets["P2"]))
+    parallelsearch(experimentCPMax, expand_config(config, "CP_MAX", nsamples, datasets["CP"]))
+    #parallelsearch(experimentFBMax, expand_config(config, "FB_MAX", nsamples, datasets["FB"]))
 
-    parallelsearch(experimentP1Min, expand_config(config, "P1_MIN", nsamples, dfs))
-    #parallelsearch(experimentP2Min, expand_config(config, "P2_MIN", nsamples, dfs))
-    #parallelsearch(experimentCPMin, expand_config(config, "CP_MIN", nsamples, dfs))
-    #parallelsearch(experimentFBMin, expand_config(config, "FB_MIN", nsamples, dfs))
+    #parallelsearch(experimentP1Min, expand_config(config, "P1_MIN", nsamples, datasets["P1"]))
+    parallelsearch(experimentP2Min, expand_config(config, "P2_MIN", nsamples, datasets["P2"]))
+    parallelsearch(experimentCPMin, expand_config(config, "CP_MIN", nsamples, datasets["CP"]))
+    #parallelsearch(experimentFBMin, expand_config(config, "FB_MIN", nsamples, datasets["FB"]))
 end

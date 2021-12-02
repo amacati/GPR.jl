@@ -40,7 +40,7 @@ function expand_config(EXPERIMENT_ID::String, nsamples::Integer, config::Dict, d
         params = JSON.parse(f)[EXPERIMENT_ID]
     end
     # Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2)
-    Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0)
+    Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0)  # Also disabled in experiments! Activate there as well!
     config = Dict("EXPERIMENT_ID" => EXPERIMENT_ID,
                   "Σ" => Σ,
                   "params" => params,
