@@ -55,7 +55,7 @@ function simulationerror(groundtruth::Vector{CState{T,N}}, predictions::Vector{C
 end
 
 function savecheckpoint(experimentid::String, checkpointdict::Dict)
-    path = joinpath(dirname(@__FILE__), "data", experimentid*"_checkpoint.json")
+    path = joinpath(dirname(dirname(@__FILE__)), "results", experimentid*"_checkpoint.json")
     if !Base.Filesystem.isfile(path)
         Base.Filesystem.mkpath(dirname(path))
         Base.Filesystem.touch(path)
@@ -66,7 +66,7 @@ function savecheckpoint(experimentid::String, checkpointdict::Dict)
 end
 
 function loadcheckpoint(experimentid::String)
-    open(joinpath(dirname(@__FILE__), "data", experimentid*"_checkpoint.json"),"r") do f
+    open(joinpath(dirname(dirname(@__FILE__)), "results", experimentid*"_checkpoint.json"),"r") do f
         return JSON.parse(f)
     end
 end

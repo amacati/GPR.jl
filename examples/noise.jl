@@ -1,7 +1,7 @@
 using LinearAlgebra
 using GPR
 
-include("utils.jl")
+include("utils/utils.jl")
 include("generatedata.jl")
 include("generate_datasets.jl")
 include("mDynamics.jl")
@@ -61,34 +61,20 @@ function expand_config(EXPERIMENT_ID::String, nsamples::Integer, config::Dict, d
     return config
 end
 
-function loadalldatasets(keys)
-    @info "Main Thread: loading datasets $keys"
-    dfcollection = Dict()
-    for key in keys
-        dfcollection[key] = loaddatasets(key)
-    end
-    @info "Main Thead: finished loading datasets"
-    return dfcollection
-end
-
-# "nruns" => 100, "Δtsim" => 0.001, "testsamples" => 1000, "simsteps" => 20
-
-config = Dict("nruns" => 100,
-              "Δtsim" => 0.0001,
-              "testsamples" => 100,
-              "simsteps" => 20)
+config = Dict("nruns" => 1, "Δtsim" => 0.0001, "testsamples" => 1, "simsteps" => 20)
 
 samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]
-dfkeys = ["P1", "P2", "CP", "FB"]  # "P1", "P2", "CP", "FB"
-datasets = loadalldatasets(dfkeys)
+dfkeys = ["P1", "P2", "CP", "FB"]
+@info "Main Thread: loading datasets $keys"
+datasets = Dict(key => loaddatasets(key) for key in dfkeys)
+@info "Main Thead: finished loading datasets"
 
-#=
 @info "Processing pure variational integrator experiments"
 parallelsim(experimentVarIntP1, expand_config("P1_MIN", 2, config, datasets["P1"]), idmod = "VI")
 parallelsim(experimentVarIntP2, expand_config("P2_MIN", 2, config, datasets["P2"]), idmod = "VI")
 parallelsim(experimentVarIntCP, expand_config("CP_MIN", 2, config, datasets["CP"]), idmod = "VI")
 parallelsim(experimentVarIntFB, expand_config("FB_MIN", 2, config, datasets["FB"]), idmod = "VI")
-
+#=
 for nsamples in samplesizes
     @info "Processing maxc noise experiments"
     parallelsim(experiment_p1_mz_max, expand_config("P1_MAX", nsamples, config, datasets["P1"]))

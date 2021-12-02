@@ -1,11 +1,14 @@
+using LinearAlgebra
+using StaticArrays
 using DataFrames
 using Serialization
+using ConstrainedDynamics
+using ConstrainedDynamics: State
 using GPR
-using LinearAlgebra
 
-include("utils.jl")
-include("generatedata.jl")
-
+include("../utils.jl")
+include("simulations.jl")
+include("../../parallel/dataframes.jl")
 
 function generateP1dataset(config::Dict)
     traindf = DataFrame(df = Vector{DataFrame}(), Δm = Vector{Float64}(), ΔJ = Vector{Float64}(), friction = Vector{Float64}())
@@ -20,7 +23,7 @@ function generateP1dataset(config::Dict)
         exp1 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5) * π, ωstart = 2(rand()-0.5), Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
         exp2 = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=((rand()/2 + 0.5)*rand((-1,1))) * π, ωstart = 2(rand()-0.5), Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]  # [-π:-π/2; π/2:π] [-π:π]
         exptest = () -> simplependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand() - 0.5)*2π, ωstart = 2(rand()-0.5), Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
-        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest, parallel = true)
+        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest)
         push!(traindf, (_traindf, Δm, ΔJ, friction))
         push!(testdf, (_testdf, Δm, ΔJ, friction))
     end
@@ -40,7 +43,7 @@ function generateP2dataset(config::Dict)
         exp1 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5) .* [π, 2π], Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
         exp2 = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=[(rand()/2 + 0.5)*rand([-1,1]), 2(rand()-0.5)] .* π, Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]    # [-π:-π/2; π/2:π] [-π:π]
         exptest = () -> doublependulum2D(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5).*2π, Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
-        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest, parallel = true)
+        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest)
         push!(traindf, (_traindf, Δm, ΔJ, friction))
         push!(testdf, (_testdf, Δm, ΔJ, friction))
     end
@@ -61,7 +64,7 @@ function generateCPdataset(config::Dict)
         exp1 = () -> cartpole(nsteps, Δt=config["Δtsim"], xstart=rand()-0.5, θstart=(rand()-0.5)π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
         exp2 = () -> cartpole(nsteps, Δt=config["Δtsim"], xstart=rand()-0.5, θstart=(rand()/2+0.5)*rand([-1,1])π, vstart=2(rand()-0.5), ωstart=2(rand()-0.5), Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
         exptest = () -> cartpole(nsteps, Δt=config["Δtsim"], xstart=rand()-0.5, θstart=2π*(rand()-0.5), vstart=2(rand()-0.5), ωstart=2(rand()-0.5), Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
-        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest, parallel = true)
+        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest)
         push!(traindf, (_traindf, Δm, ΔJ, friction))
         push!(testdf, (_testdf, Δm, ΔJ, friction))
     end
@@ -81,7 +84,7 @@ function generateFBdataset(config::Dict)
         exp1 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
         exp2 = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
         exptest = () -> fourbar(nsteps, Δt=config["Δtsim"], θstart=(rand(2).-0.5)π, Δm = Δm, ΔJ = ΔJ, friction=friction, threadlock = threadlock)[1]
-        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest, parallel = true)
+        _traindf, _testdf = generate_dataframes(config, exp1, exp2, exptest)
         push!(traindf, (_traindf, Δm, ΔJ, friction))
         push!(testdf, (_testdf, Δm, ΔJ, friction))
     end
@@ -89,7 +92,7 @@ function generateFBdataset(config::Dict)
 end
 
 function savedatasets(id, traindf, testdf)
-    root = joinpath(dirname(@__FILE__), "datasets")
+    root = joinpath(dirname(dirname(dirname(@__FILE__))), "datasets")
     if !Base.Filesystem.isdir(root)
         Base.Filesystem.mkpath(root)
     end
@@ -100,7 +103,7 @@ function savedatasets(id, traindf, testdf)
 end
 
 function loaddatasets(id)
-    root = joinpath(dirname(@__FILE__), "datasets")
+    root = joinpath(dirname(dirname(dirname(@__FILE__))), "datasets")
     path = joinpath(root, id*"_trainset.jls")
     traindf = deserialize(path)
     path = joinpath(root, id*"_testset.jls")
@@ -115,10 +118,10 @@ function getconfig()
 end
 
 function generatedataset(id::String, config::Dict)
-    occursin("P1", id) && return generateP1dataset(config)
-    occursin("P2", id) && return generateP2dataset(config)
-    occursin("CP", id) && return generateCPdataset(config)
-    occursin("FB", id) && return generateFBdataset(config)
+    "P1" == id && return generateP1dataset(config)
+    "P2" == id && return generateP2dataset(config)
+    "CP" == id && return generateCPdataset(config)
+    "FB" == id && return generateFBdataset(config)
     throw(ArgumentError("Unsupported experiment ID: $id"))
 end
 
@@ -131,4 +134,4 @@ function main()
     end
 end
 
-# main()
+main()

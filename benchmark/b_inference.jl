@@ -6,7 +6,7 @@ using Random
 using LineSearches
 using Optim
 
-include("../examples/utils.jl")
+include("../examples/utils/utils.jl")
 include("../examples/generatedata.jl")
 include("../examples/generate_datasets.jl")
 include("../examples/mDynamics.jl")

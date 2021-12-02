@@ -1,7 +1,7 @@
 include("utils.jl")
 
 
-root = dirname(@__FILE__)
+root = dirname(dirname(@__FILE__))
 config = Dict{String, Vector{Float64}}()
 checkpoint = loadcheckpoint("params_final")
 

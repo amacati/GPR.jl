@@ -1,5 +1,5 @@
 include("generatedata.jl")
-include("utils.jl")
+include("utils/utils.jl")
 include("maximal_coordinates/P1param.jl")
 include("maximal_coordinates/P2param.jl")
 include("maximal_coordinates/CPparam.jl")

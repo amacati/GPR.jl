@@ -1,4 +1,4 @@
-include("utils.jl")
+include("utils/utils.jl")
 
 function checkpointgeneric(etype::String, config::Dict, jobid::Integer, checkpointcallback!::Function)
     if jobid % 50 == 0

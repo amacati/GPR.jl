@@ -2,8 +2,6 @@ using GaussianProcesses
 using StaticArrays
 using ConstrainedDynamics
 
-include("utils.jl")
-include("generatedata.jl")
 
 mutable struct MDCache
     key::AbstractArray
