@@ -22,7 +22,7 @@ function _experiment_p2_min(config, id; usesin = false, meandynamics = false)
     # Create train and testsets
     xtrain_old = [max2mincoordinates(CState(x), mechanism) for x in traindf.sold]
     if usesin
-        xtrain_old = reduce(hcat, [[sin(s[1]), s[2], sin(s[3]), s[4]] for s in xtrain_old])  # Convert to sin(θ)
+        xtrain_old = reduce(hcat, [[sin(s[1]), cos(s[1]), s[2], sin(s[3]), cos(s[3]), s[4]] for s in xtrain_old])
     else
         xtrain_old = reduce(hcat, xtrain_old)
     end
@@ -32,13 +32,15 @@ function _experiment_p2_min(config, id; usesin = false, meandynamics = false)
 
     predictedstates = Vector{CState{Float64,2}}()
     params = config["params"]
+    params = [params[1], params[2], params[2], params[3], params[4], params[4], params[5]]
     gps = Vector{GPE}()
 
     function xtransform(x, _)
-        θ1, ω1, θ2, ω2 = x
-        if usesin 
-            θ1 = asin(θ1)
-            θ2 = asin(θ2)
+        if usesin
+            sθ1, cθ1, ω1, sθ2, cθ2, ω2 = x
+            θ1, θ2 = atan(sθ1, cθ1), atan(sθ2, cθ2)
+        else
+            θ1, ω1, θ2, ω2 = x
         end
         q1, q2 = UnitQuaternion(RotX(θ1)), UnitQuaternion(RotX(θ1+θ2))
         x1curr = [0, .5sin(θ1)l1, -.5cos(θ1)l1]
@@ -49,8 +51,8 @@ function _experiment_p2_min(config, id; usesin = false, meandynamics = false)
         x2next = [0, sin(θ1next)l1 + .5sin(θ1next+θ2next)l2, -cos(θ1next)l1 - .5cos(θ1next+θ2next)l2]
         v1 = (x1next - x1curr) / 0.01
         v2 = (x2next - x2curr) / 0.01
-        return [x1curr..., q1.w, q1.x, q1.y, q1.z, v1..., ω1, 0, 0,
-                x2curr..., q2.w, q2.x, q2.y, q2.z, v2..., ω1+ω2, 0, 0]
+        return [x1curr..., q2vec(q1)..., v1..., ω1, 0, 0,
+                x2curr..., q2vec(q2)..., v2..., ω1+ω2, 0, 0]
     end
 
     _getμ(mech) = return [mech.bodies[1].state.ωsol[2][1], mech.bodies[2].state.ωsol[2][1] - mech.bodies[1].state.ωsol[2][1]]

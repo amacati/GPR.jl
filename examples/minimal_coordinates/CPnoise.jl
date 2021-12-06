@@ -22,7 +22,7 @@ function _experiment_cp_min(config, id; usesin = false, meandynamics = false)
     # Create train and testsets
     xtrain_old = [max2mincoordinates(CState(x), mechanism) for x in traindf.sold]
     if usesin
-        xtrain_old = reduce(hcat, [[s[1], s[2], sin(s[3]), s[4]] for s in xtrain_old])  # Convert to sin(θ)
+        xtrain_old = reduce(hcat, [[s[1], s[2], sin(s[3]), cos(s[3]), s[4]] for s in xtrain_old])
     else
         xtrain_old = reduce(hcat, xtrain_old)
     end
@@ -33,19 +33,25 @@ function _experiment_cp_min(config, id; usesin = false, meandynamics = false)
 
     predictedstates = Vector{CState{Float64,2}}()
     params = config["params"]
+    if usesin
+        params = [params[1], params[2], params[3], params[4], params[4], params[5]]
+    end
     gps = Vector{GPE}()
 
     function xtransform(x, _)
-        x, v, θ, ω = x
-        usesin ? θ = asin(θ) : nothing  # Transform back to θ if given as sin(θ)
+        if usesin
+            x, v, sθ, cθ, ω = x
+            θ = atan(sθ, cθ)
+        else
+            x, v, θ, ω = x
+        end
         q = UnitQuaternion(RotX(θ))
-        θ = Rotations.rotation_angle(q)*sign(q.x)*sign(q.w)  # Signum for axis direction
         x2curr = [0, x, 0] + [0, .5sin(θ)l, -.5cos(θ)l]
         θnext = ω*0.01 + θ
         x2next = [0, x, 0] + [0, v, 0].*0.01 + [0, .5sin(θnext)l, -.5cos(θnext)l]
         v2 = (x2next - x2curr)/0.01
         return [0, x, 0, 1, 0, 0, 0, 0, v, 0, 0, 0, 0,
-                x2curr..., q.w, q.x, q.y, q.z, v2..., ω, 0, 0]
+                x2curr..., q2vec(q)..., v2..., ω, 0, 0]
     end
 
     cache = MDCache()

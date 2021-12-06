@@ -22,7 +22,7 @@ function _experiment_p1_min(config, id; usesin = false, meandynamics = false)
     # Create train and testsets
     xtrain_old = [max2mincoordinates(CState(x), mechanism) for x in traindf.sold]
     if usesin
-        xtrain_old = reduce(hcat, [[sin(s[1]), s[2]] for s in xtrain_old])  # Convert to sin(θ)
+        xtrain_old = reduce(hcat, [[sin(s[1]), cos(s[1]), s[2]] for s in xtrain_old])
     else
         xtrain_old = reduce(hcat, xtrain_old)
     end
@@ -32,16 +32,23 @@ function _experiment_p1_min(config, id; usesin = false, meandynamics = false)
 
     predictedstates = Vector{CState{Float64,1}}()
     params = config["params"]
+    if usesin
+        params = [params[1], params[2], params[2], params[3]]
+    end
     kernel = SEArd(log.(params[2:end]), log(params[1]))
     function xtransform(x, _)
-        θ, ω = x
-        usesin ? θ = asin(θ) : nothing
+        if usesin
+            sθ, cθ, ω = x
+            θ = atan(sθ, cθ)
+        else
+            θ, ω = x
+        end
         q = UnitQuaternion(RotX(θ))
         xcurr = [0, .5sin(θ)l, -.5cos(θ)l]
         θnext = θ + ω*0.01
         xnext = [0, .5sin(θnext)l, -.5cos(θnext)l]
         v = (xnext - xcurr) / 0.01
-        return [xcurr..., q.w, q.x, q.y, q.z, v..., ω, 0, 0]
+        return [xcurr..., q2vec(q)..., v..., ω, 0, 0]
     end
     cache = MDCache()
     mean = meandynamics ? MeanDynamics(mechanism, getμ([11]), 1, cache, xtransform=xtransform) : MeanZero()

@@ -40,7 +40,7 @@ function _predictdynamicsp1min(mechanism, gps, startobservation, steps, usesin)
     θold, ωold = startobservation
     θcurr = θold + mechanism.Δt*ωold
     for _ in 1:steps
-        obs = usesin ? reshape([sin(θold), ωold], :, 1) : reshape([θold, ωold], :, 1)
+        obs = usesin ? reshape([sin(θold), cos(θold), ωold], :, 1) : reshape([θold, ωold], :, 1)
         ωcurr = predict_y(gps[1], obs)[1][1]
         θold, ωold = θcurr, ωcurr
         θcurr = θcurr + ωcurr*mechanism.Δt
@@ -54,7 +54,7 @@ function _predictdynamicsp2min(mechanism, gps, startobservation, steps, usesin)
     θ1old, ω1old, θ2old, ω2old = startobservation
     θ1curr, θ2curr = θ1old + mechanism.Δt*ω1old, θ2old + mechanism.Δt*ω2old
     for _ in 1:steps
-        obs = usesin ? reshape([sin(θ1old), ω1old, sin(θ2old), ω2old], :, 1) : reshape([θ1old, ω1old, θ2old, ω2old], :, 1)
+        obs = usesin ? reshape([sin(θ1old), cos(θ1old), ω1old, sin(θ2old), cos(θ2old), ω2old], :, 1) : reshape([θ1old, ω1old, θ2old, ω2old], :, 1)
         ω1curr, ω2curr = [predict_y(gp, obs)[1][1] for gp in gps]
         θ1old, ω1old, θ2old, ω2old = θ1curr, ω1curr, θ2curr, ω2curr
         θ1curr = θ1curr + ω1curr*mechanism.Δt
@@ -71,7 +71,7 @@ function _predictdynamicscpmin(mechanism, gps, startobservation, steps, usesin)
     xold, vold, θold, ωold = startobservation
     xcurr, θcurr = xold + vold*mechanism.Δt, θold + ωold*mechanism.Δt
     for _ in 1:steps
-        obs = usesin ? reshape([xold, vold, sin(θold), ωold], :, 1) : reshape([xold, vold, θold, ωold], :, 1)
+        obs = usesin ? reshape([xold, vold, sin(θold), cos(θold), ωold], :, 1) : reshape([xold, vold, θold, ωold], :, 1)
         vcurr, ωcurr = [predict_y(gp, obs)[1][1] for gp in gps]
         xold, vold, θold, ωold = xcurr, vcurr, θcurr, ωcurr
         xcurr = xcurr + vcurr*mechanism.Δt
@@ -86,7 +86,7 @@ function _predictdynamicsfbmin(mechanism, gps, startobservation, steps, usesin)
     θ1old, ω1old, θ2old, ω2old = startobservation
     θ1curr, θ2curr = θ1old + ω1old*mechanism.Δt, θ2old + ω2old*mechanism.Δt
     for _ in 1:steps
-        obs = usesin ? reshape([sin(θ1old), ω1old, sin(θ2old), ω2old], :, 1) : reshape([θ1old, ω1old, θ2old, ω2old], :, 1)
+        obs = usesin ? reshape([sin(θ1old), cos(θ1old), ω1old, sin(θ2old), cos(θ2old), ω2old], :, 1) : reshape([θ1old, ω1old, θ2old, ω2old], :, 1)
         ω1curr, ω2curr = [predict_y(gp, obs)[1][1] for gp in gps]
         θ1old, ω1old, θ2old, ω2old = θ1curr, ω1curr, θ2curr, ω2curr
         θ1curr = θ1curr + ω1curr*mechanism.Δt

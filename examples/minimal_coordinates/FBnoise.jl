@@ -22,7 +22,7 @@ function _experiment_fb_min(config, id; usesin = false, meandynamics = false)
     # Create train and testsets
     xtrain_old = [max2mincoordinates_fb(CState(x)) for x in traindf.sold]
     if usesin
-        xtrain_old = reduce(hcat, [[sin(s[1]), s[2], sin(s[3]), s[4]] for s in xtrain_old])
+        xtrain_old = reduce(hcat, [[sin(s[1]), cos(s[1]), s[2], sin(s[3]), cos(s[3]), s[4]] for s in xtrain_old])
     else
         xtrain_old = reduce(hcat, xtrain_old)
     end
@@ -33,21 +33,26 @@ function _experiment_fb_min(config, id; usesin = false, meandynamics = false)
 
     predictedstates = Vector{CState{Float64,4}}()
     params = config["params"]
+    if usesin
+        params = [params[1], params[2], params[2], params[3], params[4], params[4], params[5]]
+    end
     gps = Vector{GPE}()
 
     function xtransform(x, _)
-        θ1, ω1, θ2, ω2 = x
-        if usesin θ1, θ2 = asin(θ1), asin(θ2) end
+        if usesin
+            sθ1, cθ1, ω1, sθ2, cθ2, ω2 = x
+            θ1, θ2 = atan(sθ1, cθ1), atan(sθ2, cθ2)
+        else
+            θ1, ω1, θ2, ω2 = x
+        end
         x1 = [0, .5sin(θ1)l, -.5cos(θ1)l]
         x2 = [0, sin(θ1)l + .5sin(θ2)l, -cos(θ1)l - .5cos(θ2)l]
         x3 = [0, .5sin(θ2)l, -.5cos(θ2)l]
         x4 = [0, sin(θ2)l + 0.5sin(θ1)l, -cos(θ2)l - .5cos(θ1)l]
         q1 = UnitQuaternion(RotX(θ1))
-        qv1 = [q1.w, q1.x, q1.y, q1.z]
         q2 = UnitQuaternion(RotX(θ2))
-        qv2 = [q2.w, q2.x, q2.y, q2.z]
-        qv3 = qv2
-        qv4 = qv1
+        q3 = q2
+        q4 = q1
         θ1next = 0.01ω1 + θ1  # 0.01 = Δt for mechanism in GP prediction
         θ2next = 0.01ω2 + θ2
         x1next = [0, .5sin(θ1next)l, -.5cos(θ1next)l]
@@ -62,8 +67,8 @@ function _experiment_fb_min(config, id; usesin = false, meandynamics = false)
         ω3 = [ω2, 0, 0]
         ω2 = ω3
         ω4 = ω1
-        cstate = [x1..., qv1..., v1..., ω1..., x2..., qv2..., v2..., ω2...,
-                  x3..., qv3..., v3..., ω3..., x4..., qv4..., v4..., ω4...]
+        cstate = [x1..., q2vec(q1)..., v1..., ω1..., x2..., q2vec(q2)..., v2..., ω2...,
+                  x3..., q2vec(q3)..., v3..., ω3..., x4..., q2vec(q4)..., v4..., ω4...]
         return cstate
     end
 
