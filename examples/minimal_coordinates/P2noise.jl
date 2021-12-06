@@ -17,7 +17,7 @@ function _experiment_p2_min(config, id; usesin = false, meandynamics = false)
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        # applynoise!(df, config["Σ"], "P2", config["Δtsim"], l1, l2)
+        applynoise!(df, config["Σ"], "P2", config["Δtsim"], l1, l2)
     end
     # Create train and testsets
     xtrain_old = [max2mincoordinates(CState(x), mechanism) for x in traindf.sold]
@@ -36,7 +36,10 @@ function _experiment_p2_min(config, id; usesin = false, meandynamics = false)
 
     function xtransform(x, _)
         θ1, ω1, θ2, ω2 = x
-        if usesin θ1, θ2 = asin(θ1), asin(θ2) end
+        if usesin 
+            θ1 = asin(θ1)
+            θ2 = asin(θ2)
+        end
         q1, q2 = UnitQuaternion(RotX(θ1)), UnitQuaternion(RotX(θ1+θ2))
         x1curr = [0, .5sin(θ1)l1, -.5cos(θ1)l1]
         x2curr = [0, sin(θ1)l1 + .5sin(θ1+θ2)l2, -cos(θ1)l1 - .5cos(θ1+θ2)l2]

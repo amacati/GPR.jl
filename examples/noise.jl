@@ -39,8 +39,8 @@ function expand_config(EXPERIMENT_ID::String, nsamples::Integer, config::Dict, d
     open(joinpath(dirname(@__FILE__), "config", "config.json"),"r") do f
         params = JSON.parse(f)[EXPERIMENT_ID]
     end
-    # Σ = Dict("x" => 5e-3, "q" => 5e-2, "v" => 5e-2, "ω" => 5e-2)
-    Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0)  # Also disabled in experiments! Activate there as well!
+    Σ = Dict("x" => 1e-3, "q" => 1e-3, "v" => 1e-3, "ω" => 1e-3)
+    # Σ = Dict("x" => 0, "q" => 0, "v" => 0, "ω" => 0)  # Also disabled in experiments! Activate there as well!
     config = Dict("EXPERIMENT_ID" => EXPERIMENT_ID,
                   "Σ" => Σ,
                   "params" => params,
@@ -62,8 +62,8 @@ end
 
 config = Dict("nruns" => 100, "Δtsim" => 0.0001, "testsamples" => 100, "simsteps" => 20)
 
-samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
-dfkeys = ["P1"]  # , "P2", "CP", "FB"s
+samplesizes = [2, 4, 8, 16, 32, 64, 128, 256, 512]  # [2, 4, 8, 16, 32, 64, 128, 256, 512, 
+dfkeys = ["FB"]  # "P1", "P2", "CP", "FB"
 @info "Main Thread: loading datasets $dfkeys"
 datasets = Dict(key => loaddatasets(key) for key in dfkeys)
 @info "Main Thead: finished loading datasets"
@@ -74,7 +74,7 @@ parallelsim(experimentVarIntP1, expand_config("P1_MIN", 2, config, datasets["P1"
 parallelsim(experimentVarIntP2, expand_config("P2_MIN", 2, config, datasets["P2"]), idmod = "VI")
 parallelsim(experimentVarIntCP, expand_config("CP_MIN", 2, config, datasets["CP"]), idmod = "VI")
 parallelsim(experimentVarIntFB, expand_config("FB_MIN", 2, config, datasets["FB"]), idmod = "VI")
-=#
+
 
 for nsamples in samplesizes
     @info "Processing P1 experiments"
@@ -86,7 +86,6 @@ for nsamples in samplesizes
     parallelsim(experiment_p1_md_min_sin, expand_config("P1_MIN", nsamples, config, datasets["P1"]), idmod = "MDsin")
 end
 
-#=
 for nsamples in samplesizes
     @info "Processing P2 experiments"
     parallelsim(experiment_p2_mz_max, expand_config("P2_MAX", nsamples, config, datasets["P2"]))
@@ -106,7 +105,7 @@ for nsamples in samplesizes
     parallelsim(experiment_cp_md_min, expand_config("CP_MIN", nsamples, config, datasets["CP"]), idmod = "MD")
     parallelsim(experiment_cp_md_min_sin, expand_config("CP_MIN", nsamples, config, datasets["CP"]), idmod = "MDsin")
 end
-
+=#
 for nsamples in samplesizes
     @info "Processing FB experiments"
     parallelsim(experiment_fb_mz_max, expand_config("FB_MAX", nsamples, config, datasets["FB"]))
@@ -116,4 +115,3 @@ for nsamples in samplesizes
     parallelsim(experiment_fb_md_min, expand_config("FB_MIN", nsamples, config, datasets["FB"]), idmod = "MD")
     parallelsim(experiment_fb_md_min_sin, expand_config("FB_MIN", nsamples, config, datasets["FB"]), idmod = "MDsin")
 end
-=#

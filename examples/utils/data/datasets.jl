@@ -123,7 +123,7 @@ end
 
 function main()
     config = getconfig()
-    for id in ["P1", "P2", "CP", "FB"]  # "P1", "P2", "CP", "FB"
+    for id in ["FB"]  # "P1", "P2", "CP", "FB"
         dfs = generatedataset(id, config)
         savedatasets(id, dfs, ["trainset", "testset", "trainset_uniform", "testset_uniform"])
         @info ("Completed dataset $id")

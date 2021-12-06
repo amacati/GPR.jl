@@ -16,7 +16,7 @@ function _experiment_cp_max(config, id; meandynamics = false)
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        # applynoise!(df, config["Σ"], "CP", config["Δtsim"], mechanism.bodies[2].shape.rh[2])
+        applynoise!(df, config["Σ"], "CP", config["Δtsim"], mechanism.bodies[2].shape.rh[2])
     end
     # Create train and testsets
     xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])

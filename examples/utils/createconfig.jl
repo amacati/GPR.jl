@@ -5,7 +5,7 @@ root = dirname(dirname(@__FILE__))
 config = Dict{String, Vector{Float64}}()
 checkpoint = loadcheckpoint("params_final")
 
-for (id, subdict) in checkpoint    
+for (id, subdict) in checkpoint
     params = subdict["params"]
     error = subdict["kstep_mse"]
     params = params[error.!==nothing]
