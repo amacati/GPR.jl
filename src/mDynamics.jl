@@ -19,6 +19,10 @@ struct MeanDynamics <: GaussianProcesses.Mean
 
     function MeanDynamics(mechanism::Mechanism, getμ::Function, μID::Int, cache::MDCache; xtransform=(x, _) -> x)
         new(mechanism, getμ, μID, cache, xtransform)
+    end
+
+    function MeanDynamics(mechanism::Mechanism, getμ::Function, μID::Int; xtransform=(x, _) -> x)
+        new(mechanism, getμ, μID, MDCache(), xtransform)
     end 
 end
 

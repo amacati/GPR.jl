@@ -12,11 +12,12 @@ function _experiment_p2_max(config, id; meandynamics = false)
     traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["nsamples"]], :]
     testdf = testdfs.df[id][shuffle(1:nrow(testdfs.df[id]))[1:config["testsamples"]], :]    
     mechanism = doublependulum2D(1; Δt=0.01, threadlock = config["mechanismlock"])[2]  # Reset Δt to 0.01 in mechanism
+    l1, l2 = mechanism.bodies[1].shape.xyz[3], mechanism.bodies[2].shape.xyz[3]
 
     xtest_future_true = [CState(x) for x in testdf.sfuture]
     # Add noise to the dataset
     for df in [traindf, testdf]
-        applynoise!(df, config["Σ"], "P2", config["Δtsim"], mechanism.bodies[1].shape.xyz[3], mechanism.bodies[2].shape.xyz[3])
+        applynoise!(df, config["Σ"], "P2", config["Δtsim"], l1, l2)
     end
     # Create train and testsets
     xtrain_old = reduce(hcat, [CState(x) for x in traindf.sold])
