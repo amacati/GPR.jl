@@ -35,6 +35,9 @@ function GaussianProcesses.set_params!(::MeanDynamics, hyp::AbstractVector)
     length(hyp) == 0 || throw(ArgumentError("Mean dynamics function has no parameters"))
 end
 
+"""
+    Mean dynamics for the GPs. Use a cache to avoid recalculating the dynamics of the same training samples over and over again.
+"""
 function GaussianProcesses.mean(mDynamics::MeanDynamics, x::AbstractVector)
     if mDynamics.cache.key != x  # Cache is invalid
         mDynamics.cache.key = x  # Set cache to current input state

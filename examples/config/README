@@ -1,0 +1,13 @@
+## config.json description
+
+The GPs won't be able to predict reasonable dynamics without good initial hyperparameters. We ran experiments with several different configurations and
+chose the set of hyperparameters for each experiment and dataset size that achieved the best test error.
+
+In the config file, the parameters for each experiment are saved under a key named `<EXPERIMENTID>_<COORDS_TYPE><N_TRAINING_SAMPLES>` as an array.
+The parameters of the maximal coordinate GP for a cartpole experiment with 32 samples for example are in `config["CP_MAX32"]`.
+
+Experiment types are:
+- P1 (Simple pendulum)
+- P2 (Double pendulum)
+- CP (Cartpole)
+- FB (Fourbar)

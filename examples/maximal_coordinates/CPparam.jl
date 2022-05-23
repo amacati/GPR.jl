@@ -6,7 +6,12 @@ using ConstrainedDynamics
 using LineSearches
 using Statistics
 
-
+"""
+    Learn the dynamics from perfect data and calculate the error compared to the test set. The hyperparameters
+    for each run are chosen at random from a reasonable start distribution that is realted to the training data.
+    This `reasonable` distribution has been found by trial and error and visual inspection of the dynamics predicted
+    by the GPs.
+"""
 function experimentCPMax(config, id)
     traindfs, testdfs = config["datasets"]  # Each thread operates on its own dataset -> no races
     traindf = traindfs.df[id][shuffle(1:nrow(traindfs.df[id]))[1:config["trainsamples"]], :]

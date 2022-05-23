@@ -1,3 +1,6 @@
+"""
+    Checkpoints results every 50 experiments. Locks needed to avoid data races.
+"""
 function checkpointgeneric(etype::String, config::Dict, jobid::Integer, checkpointcallback!::Function)
     if jobid % 50 == 0
         @info ("Main Thread: Processing job $(jobid)/$(config["nruns"]), jobID $(config["EXPERIMENT_ID"])")
@@ -18,6 +21,9 @@ function checkpointgeneric(etype::String, config::Dict, jobid::Integer, checkpoi
     end
 end
 
+"""
+    Run experiments on multiple worker nodes and safely handle results.
+"""
 function parallelrun(etype::String, experiment::Function, config::Dict, checkpointcallback!::Function, resultcallback!::Function, finalcallback!::Function)
     Threads.@threads for jobid in config["nprocessed"]+1:config["nruns"] 
         # Increment nprocessed (threadsafe)
@@ -39,7 +45,7 @@ function parallelrun(etype::String, experiment::Function, config::Dict, checkpoi
             # throw(e)
         end
         lock(config["resultlock"])
-        # Writing the results
+        # Write the results
         try
             resultcallback!(result, config)
         catch e
@@ -60,6 +66,9 @@ function parallelrun(etype::String, experiment::Function, config::Dict, checkpoi
     @info ("Main Thread: Parallel run $(config["EXPERIMENT_ID"]) finished successfully.")
 end
 
+"""
+    Define callbacks for checkpointing and result handling for noise experiments and execute the experiment on multiple workers.
+"""
 function parallelsim(experiment::Function, config::Dict; idmod::String = "")
     etype = "noisy" * idmod  # Mean dynamics, sin need different ID
     function checkpointcallback!(checkpoint::Dict, config::Dict)
@@ -79,6 +88,9 @@ function parallelsim(experiment::Function, config::Dict; idmod::String = "")
     parallelrun(etype, experiment, config, checkpointcallback!, resultcallback!, finalcallback!)
 end
 
+"""
+    Define callbacks for checkpointing and result handling for the parameter search and execute the search on multiple workers.
+"""
 function parallelsearch(experiment::Function, config::Dict)
     etype = "params"
 

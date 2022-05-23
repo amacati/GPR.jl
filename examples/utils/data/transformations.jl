@@ -1,6 +1,9 @@
 using ConstrainedDynamics
 using GPR
 
+"""
+    Transform CState from maximal to minimal coordinates.
+"""
 function max2mincoordinates(cstate::CState, mechanism::Mechanism)
     oldstates = getStates(mechanism)
     states = toStates(cstate)

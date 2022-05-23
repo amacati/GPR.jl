@@ -74,21 +74,26 @@ function resetMechanism!(mechanism::Mechanism, states::Vector{<:ConstrainedDynam
     foreach(ConstrainedDynamics.setsolution!, mechanism.bodies)
 end
 
+"""
+    Project the prediction of the GPs to the closest twist vector that fulfills the mechanism constraints.
+"""
 function projectv!(vᵤ::Vector{<:SVector}, ωᵤ::Vector{<:SVector}, mechanism::Mechanism; newtonIter::Integer = 100, ϵ::Real = 1e-10, regularizer::Real = 0.)
     Ndims = sum([length(eqc) for eqc in mechanism.eqconstraints])  # Total dimensionality of constraints
     Nbodies = length(mechanism.bodies)
     F = zeros(Nbodies*6 + Ndims, Nbodies*6 + Ndims)  # 3 vel, 3 ω for each body -> 6
-    for i in 1:Nbodies*6 F[i,i] = 1 end
+    for i in 1:Nbodies*6 F[i,i] = 1 end  # Unity matrix in the upper entries of F
     s = zeros(MVector{6*Nbodies + Ndims})
     sᵤ = zeros(MVector{6*Nbodies})
     updateS!(s, vᵤ, ωᵤ)  # Initial s is [v1, ω1, v2, ω2, ...,  λ1, λ2, ...] with λ = 0
     updateS!(sᵤ, vᵤ, ωᵤ)
-    updateMechanism!(mechanism, s)
-    updateF!(F, mechanism)
-    F += I*regularizer
-    Gᵥ = (@view F[1+Nbodies*6:end, 1:Nbodies*6])
-    f(s) = vcat(d(s, sᵤ, Gᵥ, Nbodies), g(mechanism))
+    updateMechanism!(mechanism, s)  # Set the mechanism states to the prediction
+    updateF!(F, mechanism)  # Update F with the mechanism constraint entries
+    F += I*regularizer  # Add a regularizer to avoid ill-conditioned F
+    Gᵥ = (@view F[1+Nbodies*6:end, 1:Nbodies*6])  # View of the constraint entries in F
+    f(s) = vcat(d(s, sᵤ, Gᵥ, Nbodies), g(mechanism)) 
     α = 1.
+    # Optimize the s vector to be as close to sᵤ as possible while fulfilling the mechanism constraints.
+    # LINE SEARCH IS CURRENTLY MISSING!
     for i in 1:newtonIter
         updateF!(F, mechanism)
         Δs = F\f(s)

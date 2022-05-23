@@ -1,7 +1,11 @@
 using DataFrames
 
-
+"""
+    Generate up to 100 trajectories for the training set and 100 for the test set. Randomly sample these trajectories until the desired dataset size has been reached.
+    If generate_uniform, also generate a dataset where the samples are chosen in uniform intervals from each trajectory. 
+"""
 function generate_dataframes(config, exp1, exp2, exptest; generate_uniform = false)
+    # Calculate the number of trajectories and samples per trajectory
     max_trajectories = 100
     Ntrajectories = min(config["trainsamples"], max_trajectories)
     Ntrajectories_test = min(config["testsamples"], max_trajectories)
@@ -10,7 +14,8 @@ function generate_dataframes(config, exp1, exp2, exptest; generate_uniform = fal
     samplerange = 1:(2*Int(1/config["Δtsim"]) - scaling)
     traindf = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}())
     generate_uniform && (traindf_uniform = DataFrame(sold = Vector{Vector{State}}(), scurr = Vector{Vector{State}}()))
-    threadlock = ReentrantLock()  # Push to df not atomic
+    threadlock = ReentrantLock()  # Push to df not atomic -> push requires lock
+    # Generate the trajectories in parallel and push random samples into the dataset
     Threads.@threads for _ in 1:div(Ntrajectories, 2)
         storage = _run_experiment!(exp1)
         _pushsamples!(storage, traindf, Ntrajectorysamples, samplerange, [0, scaling], scaling, threadlock)
@@ -46,6 +51,10 @@ function _run_experiment!(experiment; maxruns = 10)
     throw(ErrorException("Experiment failed to execute $maxruns times"))
 end
 
+"""
+    Push random samples from a trajectory to the dataset. Threadsafe. Samples are guaranteed to not 
+    intersect each other (next_state_1 is always earlier than start_state_2).
+"""
 function _pushsamples!(storage, df, nsamples, samplerange, indexoffset, scaling, threadlock)
     @assert (4scaling+1)*nsamples < length(samplerange)
     indiceset = Set()
@@ -65,6 +74,9 @@ function _pushsamples!(storage, df, nsamples, samplerange, indexoffset, scaling,
     end
 end
 
+"""
+    Push samples in uniform intervals to the dataset. Threadsafe.
+"""
 function _pushuniformsamples!(storage, df, nsamples, samplerange, indexoffset, threadlock)
     @assert length(samplerange) > nsamples
     indiceset = Set()
