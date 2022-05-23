@@ -1,8 +1,8 @@
 # Maximum coordinate GPs for variational integrators
 
 ## Structure of the repository
-The repository was constantly devolving while writing a paper, so the overall structure is not as coherent as would be desirable. 
-This README should give you a good idea where everything is located, and the code itself contains thorough explanations.
+This repository underwent constant changes while writing a paper, so the overall structure is not as coherent as would be desirable. 
+The README should give you a good idea where everything is located though, and the code itself contains further explanations.
 
 ### src
 The [src](/src/) folder contains the [maximal coordinate projection](src/projections/implicitProjection.jl). It projects the predictions of a maximum coordinate GP to the constraints of a given mechanism.
