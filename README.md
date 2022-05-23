@@ -23,7 +23,8 @@ We also parallelized the training data generation since our sampling scheme requ
 If you rerun the hyperparameter search and want to create a new config from the results, you need to rerun [createconfig.jl](examples/utils/createconfig.jl). Otherwise this file is irrelevant. [predictdynamics.jl](examples/utils/predictdynamics.jl) defines functions that predict the dynamics of a system with GPs. Since the prediction depends on the system type, these functions are tailored to our experiments.
 
 In order to run the experiments you execute [noise.jl](examples/noise.jl). This will run experiments for all dataset sizes and write the final results to the results folder. 
->: Note: The experiment settings such as noise levels and simulation step sizes are set by changing the config dict and in `expand_config()`.
+> **Note:** The experiment settings such as noise levels and simulation step sizes are set by changing the config dict and in `expand_config()`.
+
 If you want to rerun the hyperparameter search, you execute [hyperparameter.jl](examples/hyperparameter.jl). Don't forget to create a new config after finishing the run!
 
 The experiments in [energy.jl](examples/energy.jl) are a simplified case of the 1 link pendulum and compare the energy conservation of the GP variational integrator with an explicit Euler integrator.
